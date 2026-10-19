@@ -1,5 +1,61 @@
 # Changelog
 
+## v0.4.1 — PyOD Compatibility Fixes and Hardening
+
+> ⚠️ **Benchmark correction notice**: v0.4.0 benchmark results claiming "HBOS AUC=0.991, PCA AUC=0.969" were computed on a synthetic corpus where the 30 synthetic entries (10 configs × 3 seeds) produced only 3 unique score fingerprints due to a shared RNG state bug in the benchmark generator. The corrected numbers below are from a re-run of the fixed generator producing 32 genuinely unique datasets.
+
+### Bug Fixes
+
+- **ECOD API mismatch** (critical): `ECOD(contamination=..., n_bins=...)` — `n_bins` was never a valid PyOD ECOD parameter. Removed; PyOD ECOD accepts only `contamination` and `n_jobs`. Fix: `n_bins` removed from `ECODConfig`, `n_jobs` added.
+- **Contamination validation**: All three PyOD adapters (ECOD, LOF, KNN) incorrectly validated contamination as `(0, 1]` instead of the correct PyOD range `(0, 0.5]`. Fixed across all three.
+- **Score semantics documentation**: ECOD adapter had contradictory comments about score orientation (lower vs. larger = more anomalous). Corrected to "larger = more anomalous (PyOD decision score)".
+
+### Input Guards and Typed Errors
+
+- **`InsufficientDataError`** (new, `schema.py`): Added typed error for insufficient rows. All three adapters now raise this explicitly instead of uncontrolled PyOD/sklearn crashes.
+- **Pre-flight minimum-sample checks**: ECOD requires ≥5 rows; LOF/KNN require ≥`n_neighbors+1` rows.
+- **Non-finite score guard** (3 adapters): All three adapters now raise `AnomalyLabError` if PyOD produces NaN/inf scores, instead of silently propagating them or converting to zeros.
+
+### Test Coverage
+
+- **`tests/test_pyod_adapters.py`** (new): 32 compatibility tests covering ECOD/LOF/KNN instantiation, fit/predict, score orientation, row index preservation, constant-feature handling, contamination validation, insufficient sample behavior, NaN output rejection.
+- **`except Exception: pass` removed**: `test_insufficient_samples_behavior` now enforces a typed `AnomalyLabError` contract or valid `DetectionResult` — no silent pass.
+
+### Version Policy
+
+- **`pyod>=1.1` confirmed safe**: Verified against PyOD v1.1.0 source; ECOD, LOF, KNN APIs unchanged since v1.1.0. `n_bins` never existed in any PyOD version.
+
+### CI Hardening
+
+- **`pyod-adapters` CI job** (Python 3.12): Installs `.[pyod]`, verifies PyOD version, runs `pytest tests/test_pyod_adapters.py`, verifies adapter imports.
+- **`pyod-version-matrix` CI job** (Python 3.12): Tests against PyOD 1.1.0, 2.0.0, and current — proves `pyod>=1.1` compatibility across the stated range.
+
+### Empirical Benchmark (Phase 6, corrected)
+
+8 detectors × 32 genuinely unique datasets (10 configs × 3 seeds + correlated_multivariate + local_density). Previous "32-dataset" results were invalidated: only 3 unique score fingerprints. Fixed benchmark generator uses per-seed shared RNG state with `i`-step advancement to ensure each config produces distinct data.
+
+| Detector | AUC | Max Spearman vs others |
+|---|---|---|
+| robust-zscore | 0.978±0.069 | 0.784 (HBOS) |
+| isolation-forest | 0.990±0.024 | 0.952 (LOF) ⚠️ |
+| dbscan | 0.553±0.110 | — (REJECT_UNSTABLE) |
+| ecod | 0.962±0.164 | 0.906 (PCA) |
+| lof | 0.990±0.018 | 0.952 (IF) ⚠️ |
+| knn | 0.990±0.018 | 0.915 (LOF) |
+| **hbos** | **0.988±0.022** | **0.896 (IF)** → **ADD** |
+| **pca** | **0.963±0.143** | **0.906 (ECOD)** → **ADD** |
+
+- **HBOS → ADD**: AUC=0.988, max Spearman=0.896 (below 0.90 threshold). Adds global histogram-bin perspective, complementary to local-density detectors.
+- **PCA → ADD**: AUC=0.963, max Spearman=0.906 (marginally above 0.90). Projection-based detection of subspace anomalies not caught by ECDF or density-based methods.
+- **LODA → RESEARCH_ONLY**: Analytical evidence only; no implementation in this codebase.
+- **DBSCAN → REJECT_UNSTABLE**: AUC=0.553 on sparse injected outliers (eps=0.5 unsuitable for isolated points; eps tuning may help but not addressed here).
+
+⚠️ `isolation-forest ↔ lof` redundancy at 0.952 — highest pairwise correlation in the ensemble.
+
+### Isolation Forest Audit (Phase 8)
+
+Verified correct: StandardScaler necessity (random splits are scale-sensitive), contamination accepts `(0, 1]` (sklearn vs PyOD difference), score inversion via `-model.score_samples()` is correct (lower = more isolated = more anomalous, negated to higher = more anomalous), `random_state=42` provides reproducibility.
+
 ## v0.4.0 — Anomaly Evidence Engine
 
 - **DatasetSemantics** (Phase A): six semantic types — `UNORDERED_TABULAR` / `ORDERED_SERIES` / `PAIRED_EXPERIMENT` / `INDEPENDENT_EXPERIMENT` / `GROUPED` / `STREAMING_ORDERED`. Temporal detectors silently reject unordered data. Add `anomaly-lab inspect` CLI.

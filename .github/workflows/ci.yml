@@ -38,3 +38,47 @@ jobs:
           /tmp/anomaly-lab-smoke/bin/python -m pip install .
           cd /tmp
           /tmp/anomaly-lab-smoke/bin/anomaly-lab --help
+
+  pyod-adapters:
+    name: PyOD Adapters (Python 3.12)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Install package with PyOD extra
+        run: python -m pip install -e '.[pyod]'
+      - name: Verify PyOD is installed
+        run: python -c "import pyod; print('PyOD version:', pyod.__version__)"
+      - name: Run PyOD adapter tests
+        run: pytest -q tests/test_pyod_adapters.py
+      - name: Verify adapters are importable from installed package
+        run: |
+          python -c "from anomaly_lab.detectors.pyod_adapters import fit_predict_ecod, fit_predict_lof, fit_predict_knn, ECODConfig, LOFConfig, KNNConfig; print('All PyOD adapters importable: OK')"
+
+  pyod-version-matrix:
+    name: PyOD ${{ matrix.pyod-version }}
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ['3.12']
+        pyod-version: ['1.1.0', '2.0.0']
+        include:
+          - python-version: '3.12'
+            pyod-version: 'current'
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+      - name: Install PyOD ${{ matrix.pyod-version }}
+        run: |
+          if [ "${{ matrix.pyod-version }}" = "current" ]; then
+            python -m pip install -e '.[pyod]'
+          else
+            python -m pip install -e '.[pyod]' "pyod==${{ matrix.pyod-version }}"
+          fi
+      - name: Run PyOD adapter tests against pyod ${{ matrix.pyod-version }}
+        run: pytest -q tests/test_pyod_adapters.py
