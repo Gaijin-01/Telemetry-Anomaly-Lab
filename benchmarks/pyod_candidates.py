@@ -27,7 +27,8 @@ from itertools import combinations
 import numpy as np
 import pandas as pd
 
-# PyOD direct imports (HBOS, PCA candidates)
+# PyOD direct imports (HBOS, ECOD, PCA)
+from pyod.models.ecod import ECOD
 from pyod.models.hbos import HBOS
 from pyod.models.pca import PCA as PyODPCA
 from scipy.stats import spearmanr
@@ -235,7 +236,7 @@ def run_ecod(df, features):
         import time
 
         t0 = time.perf_counter()
-        clf = PyODPCA(contamination=CONTAMINATION)
+        clf = ECOD(contamination=CONTAMINATION)
         clf.fit(X)
         scores = clf.decision_scores_
         ms = (time.perf_counter() - t0) * 1000
@@ -316,12 +317,12 @@ def safe_roc_auc(y_true, y_score):
 
 
 def safe_spearman(y_true, y_score):
-    """Return NaN if correlation cannot be computed."""
+    """Return NaN if correlation cannot be computed; do NOT return 0.0."""
     try:
         rho, _ = spearmanr(y_true, y_score)
-        return float(rho) if not np.isnan(rho) else 0.0
+        return float(rho) if np.isfinite(rho) else float("nan")
     except Exception:
-        return 0.0
+        return float("nan")
 
 
 def top5_overlap(score_dict: dict) -> float:
