@@ -16,6 +16,12 @@ class DetectionResult:
     scores: tuple[float | None, ...] | None = None
     clusters: tuple[int, ...] | None = None
     metadata: dict[str, Any] | None = None
+    # Phase N fields
+    schema_version: str = "0.4"
+    dataset_semantics: str | None = None
+    evidence_class: str = ""
+    confidence: float | None = None
+    applicability: str = "APPLICABLE"
 
     def __post_init__(self) -> None:
         size = len(self.row_indices)
@@ -39,6 +45,11 @@ class DetectionResult:
             "constant_features": list(self.constant_features),
             "parameters": _safe(self.parameters),
             "metadata": _safe(self.metadata or {}),
+            "schema_version": self.schema_version,
+            "dataset_semantics": self.dataset_semantics,
+            "evidence_class": self.evidence_class,
+            "confidence": self.confidence,
+            "applicability": self.applicability,
             "rows": [
                 {
                     "position": position,

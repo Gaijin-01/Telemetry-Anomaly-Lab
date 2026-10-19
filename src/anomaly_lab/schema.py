@@ -28,3 +28,7 @@ class InputReadError(AnomalyLabError):
 
 class ConfigValidationError(AnomalyLabError):
     """TOML configuration is invalid or refers to unknown fields."""
+
+
+class RegimeDetectionError(AnomalyLabError):
+    """Regime analysis precondition failed."""
