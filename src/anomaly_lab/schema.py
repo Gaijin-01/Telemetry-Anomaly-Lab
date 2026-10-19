@@ -6,6 +6,13 @@ class EmptyDataError(AnomalyLabError):
     """Input contains no rows."""
 
 
+class InsufficientDataError(AnomalyLabError):
+    """Input contains too few rows for the requested detector to operate reliably.
+
+    Each detector has a minimum sample requirement above zero.
+    """
+
+
 class FeatureSelectionError(AnomalyLabError):
     """Feature selection is missing, invalid, or uninformative."""
 

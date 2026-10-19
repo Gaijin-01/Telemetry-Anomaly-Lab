@@ -5,13 +5,10 @@ These adapters are only functional when pyod is installed.
 
 Detector semantics
 ------------------
-- ECOD  : Empirical Cumulative Distribution-based Outlier Detection.
-          Lower score = more anomalous (inverted before returning).
-- LOF   : Local Outlier Factor (k-NN LOF).  Lower score = more anomalous (inverted).
-- KNN   : Median of k-NN distances.          Lower score = more anomalous (inverted).
-
-All three produce higher = more anomalous scores consistent with
-the rest of the anomaly-lab detector interface.
+All three (ECOD, LOF, KNN) use PyOD's decision_scores_ where
+larger values mean more anomalous. We return these scores directly,
+consistent with the higher = more anomalous convention used
+throughout anomaly-lab.
 """
 
 from __future__ import annotations
@@ -23,7 +20,7 @@ import pandas as pd
 
 from anomaly_lab.features import prepare_features
 from anomaly_lab.results import DetectionResult
-from anomaly_lab.schema import InvalidDetectorConfigError
+from anomaly_lab.schema import AnomalyLabError, InsufficientDataError, InvalidDetectorConfigError
 
 # pyod is imported lazily so the rest of the package works without it.
 _pyod_available: bool | None = None
@@ -49,12 +46,34 @@ def _ensure_pyod() -> type:
     return pyod
 
 
+#: Upper bound for contamination across all PyOD models in this module.
+#: PyOD models (ECOD, LOF, KNN) all require contamination in (0, 0.5].
+_CONTAMINATION_MAX = 0.5
+
+
+def _validate_contamination(value: float, name: str) -> None:
+    if not isinstance(value, (int, float)):
+        raise InvalidDetectorConfigError(f"{name}: contamination must be a number")
+    if not (0 < value <= _CONTAMINATION_MAX):
+        raise InvalidDetectorConfigError(
+            f"{name}: contamination must be in (0, {_CONTAMINATION_MAX}]"
+        )
+
+
 @dataclass(frozen=True)
 class ECODConfig:
-    """ECOD configuration."""
+    """ECOD (Empirical CDF-based Outlier Detection) configuration.
+
+    ECOD is a parameter-free, highly interpretable outlier detection algorithm
+    based on empirical CDF functions. It requires no hyperparameters beyond
+    contamination and parallelism (n_jobs).
+
+    Reference: Li et al. 2021, "ECOD: A Python Package for
+    Empirical Cumulative Distribution Functions for Outlier Detection".
+    """
 
     contamination: float = 0.1
-    n_bins: int = 10
+    n_jobs: int = 1
 
 
 def fit_predict_ecod(
@@ -65,33 +84,36 @@ def fit_predict_ecod(
     """ECOD (Empirical Cumulative Distribution-based Outlier Detection).
 
     ECOD computes tail probabilities based on empirical CDFs.
-    Lower raw score = more anomalous; we invert to higher = more anomalous.
+    Larger decision_scores_ = more anomalous (consistent with anomaly-lab convention).
     """
     _ensure_pyod()
     from pyod.models.ecod import ECOD as PyODECOD
 
     config = config or ECODConfig()
-    if not isinstance(config.contamination, (int, float)) or not (0 < config.contamination <= 1):
-        raise InvalidDetectorConfigError("contamination must be in (0, 1]")
-    if not isinstance(config.n_bins, int) or config.n_bins < 1:
-        raise InvalidDetectorConfigError("n_bins must be a positive integer")
+    _validate_contamination(config.contamination, "ECOD")
+    if not isinstance(config.n_jobs, int) or config.n_jobs < 1:
+        raise InvalidDetectorConfigError("ECOD: n_jobs must be a positive integer")
 
     prepared = prepare_features(frame, features)
+    if prepared.values.shape[0] < 5:
+        raise InsufficientDataError(
+            f"ECOD requires at least 5 rows; got {prepared.values.shape[0]}"
+        )
 
-    model = PyODECOD(contamination=config.contamination, n_bins=config.n_bins)
+    model = PyODECOD(contamination=config.contamination, n_jobs=config.n_jobs)
     model.fit(prepared.values)
-    # ECOD: lower raw scores are more anomalous
-    raw_scores = model.decision_scores_  # shape (n_samples,)
-    # Invert: higher = more anomalous
+
+    # PyOD decision_scores_: larger = more anomalous
+    raw_scores = model.decision_scores_
+    if not np.all(np.isfinite(raw_scores)):
+        raise AnomalyLabError(
+            f"ECOD produced non-finite scores (NaN or inf); "
+            f"input may contain invalid values. Input shape: {prepared.values.shape}"
+        )
+    # Guard against degenerate all-zero scores
     max_raw = float(np.max(raw_scores))
-    if max_raw == 0:
-        scores = np.zeros_like(raw_scores)
-    else:
-        scores = raw_scores  # already oriented: higher in raw = less anomalous
-        # Actually ECOD's decision_scores_ are already "outlier scores" where
-        # larger = more anomalous. Let us verify the direction.
-        # Per pyod docs: decision_scores_ are raw anomaly scores (larger = more outlying).
-        # So we use them directly as our scores.
+    scores = raw_scores if max_raw > 0 else np.zeros_like(raw_scores)
+
     predictions = model.predict(prepared.values)  # 0 = inlier, 1 = outlier
 
     return DetectionResult(
@@ -100,18 +122,19 @@ def fit_predict_ecod(
         is_anomaly=tuple(bool(p == 1) for p in predictions),
         features=prepared.features,
         constant_features=prepared.constant_features,
-        parameters={"contamination": config.contamination, "n_bins": config.n_bins},
+        parameters={"contamination": config.contamination, "n_jobs": config.n_jobs},
         scores=tuple(float(s) for s in scores),
         metadata={
             "model": "ECOD",
-            "score_semantics": "larger = more anomalous (raw pyod decision score)",
+            "score_semantics": "larger = more anomalous (PyOD decision score)",
+            "method_family": "distribution_based",
         },
     )
 
 
 @dataclass(frozen=True)
 class LOFConfig:
-    """Local Outlier Factor configuration."""
+    """Local Outlier Factor (k-NN LOF) configuration."""
 
     contamination: float = 0.1
     n_neighbors: int = 20
@@ -128,18 +151,23 @@ def fit_predict_lof(
 
     LOF computes the local density deviation of a point relative to its k-nearest
     neighbours.  A value ≈ 1 means normal density; > 1 indicates outlier.
-    We return higher = more anomalous.
+    We return higher = more anomalous (decision_scores_ are already oriented).
     """
     _ensure_pyod()
     from pyod.models.lof import LOF as PyODLOF
 
     config = config or LOFConfig()
+    _validate_contamination(config.contamination, "LOF")
     if not isinstance(config.n_neighbors, int) or config.n_neighbors < 1:
-        raise InvalidDetectorConfigError("n_neighbors must be a positive integer")
-    if not isinstance(config.contamination, (int, float)) or not (0 < config.contamination <= 1):
-        raise InvalidDetectorConfigError("contamination must be in (0, 1]")
+        raise InvalidDetectorConfigError("LOF: n_neighbors must be a positive integer")
 
     prepared = prepare_features(frame, features)
+    min_needed = config.n_neighbors + 1
+    if prepared.values.shape[0] < min_needed:
+        raise InsufficientDataError(
+            f"LOF with n_neighbors={config.n_neighbors} requires at least "
+            f"{min_needed} rows; got {prepared.values.shape[0]}"
+        )
 
     model = PyODLOF(
         contamination=config.contamination,
@@ -148,8 +176,12 @@ def fit_predict_lof(
         p=config.p,
     )
     model.fit(prepared.values)
-    # LOF decision_scores_: larger = more anomalous
     scores = model.decision_scores_
+    if not np.all(np.isfinite(scores)):
+        raise AnomalyLabError(
+            f"LOF produced non-finite scores (NaN or inf); "
+            f"input may contain invalid values. Input shape: {prepared.values.shape}"
+        )
     predictions = model.predict(prepared.values)
 
     return DetectionResult(
@@ -168,6 +200,7 @@ def fit_predict_lof(
         metadata={
             "model": "LOF",
             "score_semantics": "larger = more anomalous (LOF score; ~1 = normal, >1 = outlier)",
+            "method_family": "density_based",
         },
     )
 
@@ -192,20 +225,25 @@ def fit_predict_knn(
 
     Computes the distance to the k-th nearest neighbour (or median/mean of
     all k distances) for each point. Larger distances indicate stronger
-    isolation = more anomalous.
+    isolation = more anomalous.  We return higher = more anomalous.
     """
     _ensure_pyod()
     from pyod.models.knn import KNN as PyODKNN
 
     config = config or KNNConfig()
+    _validate_contamination(config.contamination, "KNN")
     if not isinstance(config.n_neighbors, int) or config.n_neighbors < 1:
-        raise InvalidDetectorConfigError("n_neighbors must be a positive integer")
-    if not isinstance(config.contamination, (int, float)) or not (0 < config.contamination <= 1):
-        raise InvalidDetectorConfigError("contamination must be in (0, 1]")
+        raise InvalidDetectorConfigError("KNN: n_neighbors must be a positive integer")
     if config.method not in ("median", "mean"):
-        raise InvalidDetectorConfigError("method must be 'median' or 'mean'")
+        raise InvalidDetectorConfigError("KNN: method must be 'median' or 'mean'")
 
     prepared = prepare_features(frame, features)
+    min_needed = config.n_neighbors + 1
+    if prepared.values.shape[0] < min_needed:
+        raise InsufficientDataError(
+            f"KNN with n_neighbors={config.n_neighbors} requires at least "
+            f"{min_needed} rows; got {prepared.values.shape[0]}"
+        )
 
     model = PyODKNN(
         contamination=config.contamination,
@@ -215,8 +253,12 @@ def fit_predict_knn(
         p=config.p,
     )
     model.fit(prepared.values)
-    # KNN decision_scores_: larger = more anomalous (larger distance to neighbours)
     scores = model.decision_scores_
+    if not np.all(np.isfinite(scores)):
+        raise AnomalyLabError(
+            f"KNN produced non-finite scores (NaN or inf); "
+            f"input may contain invalid values. Input shape: {prepared.values.shape}"
+        )
     predictions = model.predict(prepared.values)
 
     return DetectionResult(
@@ -236,6 +278,7 @@ def fit_predict_knn(
         metadata={
             "model": "KNN",
             "score_semantics": "larger = more anomalous (k-NN distance; more isolated = outlier)",
+            "method_family": "distance_based",
         },
     )
 

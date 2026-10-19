@@ -16,10 +16,11 @@ def _load_pyproject() -> dict:
     return tomllib.loads(content)
 
 
-def test_changelog_has_v040_and_v030():
-    """CHANGELOG.md must contain v0.4.0 and v0.3.0 sections."""
+def test_changelog_has_v041_and_v040_and_v030():
+    """CHANGELOG.md must contain v0.4.1, v0.4.0 and v0.3.0 sections."""
     root = Path(__file__).resolve().parents[1]
     changelog = (root / "CHANGELOG.md").read_text()
+    assert "## v0.4.1" in changelog, "CHANGELOG.md missing '## v0.4.1' section"
     assert "## v0.4.0" in changelog, "CHANGELOG.md missing '## v0.4.0' section"
     assert "## v0.3.0" in changelog, "CHANGELOG.md missing '## v0.3.0' section"
 
@@ -43,11 +44,11 @@ def test_schema_version_is_04():
     )
 
 
-def test_pyproject_version_is_040():
-    """pyproject.toml version must be 0.4.0."""
+def test_pyproject_version_is_041():
+    """pyproject.toml version must be 0.4.1."""
     data = _load_pyproject()
-    assert data["project"]["version"] == "0.4.0", (
-        f"pyproject.toml version is {data['project']['version']!r}, expected '0.4.0'"
+    assert data["project"]["version"] == "0.4.1", (
+        f"pyproject.toml version is {data['project']['version']!r}, expected '0.4.1'"
     )
 
 
