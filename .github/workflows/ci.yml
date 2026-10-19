@@ -78,7 +78,7 @@ jobs:
           if [ "${{ matrix.pyod-version }}" = "current" ]; then
             python -m pip install -e '.[dev,pyod]'
           else
-            python -m pip install "pyod==${{ matrix.pyod-version }}" -e '.[dev,pyod]'
+            python -m pip install "pyod==${{ matrix.pyod-version }}" "scikit-learn<1.6" "pyod>=1.1" -e '.[dev]'
           fi
       - name: Run PyOD adapter tests against pyod ${{ matrix.pyod-version }}
         run: pytest -q tests/test_pyod_adapters.py
