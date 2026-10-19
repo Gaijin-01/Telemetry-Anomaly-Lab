@@ -38,7 +38,9 @@ def test_schema_version_is_04():
         scores=(0.0,),
         metadata={},
     )
-    assert result.schema_version == "0.4", f"schema_version is {result.schema_version!r}, expected '0.4'"
+    assert result.schema_version == "0.4", (
+        f"schema_version is {result.schema_version!r}, expected '0.4'"
+    )
 
 
 def test_pyproject_version_is_040():
