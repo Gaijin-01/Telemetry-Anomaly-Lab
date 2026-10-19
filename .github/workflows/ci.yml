@@ -88,53 +88,6 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - name: Build artifact scan
-        run: |
-          echo "=== Tracked build artifacts ==="
-          ARTIFACTS=$(git ls-files | grep -E '(\.whl$|/dist/|/build/|\.egg-info/|\.egg$|/htmlcov/)' || true)
-          if [ -n "$ARTIFACTS" ]; then echo "FAIL: $ARTIFACTS"; exit 1; else echo "PASS"; fi
-      - name: Cache artifact scan
-        run: |
-          echo "=== Tracked cache artifacts ==="
-          CACHE=$(git ls-files | grep -E '(\.ruff_cache|\.mypy_cache|\.pytest_cache|__pycache__|\.hypothesis/)' || true)
-          if [ -n "$CACHE" ]; then echo "FAIL: $CACHE"; exit 1; else echo "PASS"; fi
-      - name: Machine-specific path scan
-        run: |
-          echo "=== Machine-specific paths ==="
-          for pattern in "/mnt/c/Users" "/home/sefi" "C:\\\\Users" "\\\\DESKTO" "/tmp/anomaly-lab" "/tmp/ci_"; do
-            FOUND=$(git ls-files | grep -F "$pattern" || true)
-            if [ -n "$FOUND" ]; then echo "FAIL: $pattern in $FOUND"; exit 1; fi
-          done
-          echo "PASS"
-      - name: Credential pattern scan
-        run: |
-          echo "=== Credential patterns ==="
-          for pattern in \
-            "ghp_[A-Za-z0-9]\{36\}" \
-            "github_pat_[A-Za-z0-9_\-]\{70\}" \
-            "xox[baprs]-[A-Za-z0-9\-]\{48\}" \
-            "Bearer[[:space:]]\+[A-Za-z0-9_\-\.]\{20\}" \
-            "GITHUB_TOKEN[[:space:]]*=" \
-            "HuggingFace[[:space:]]*:"; do
-            FOUND=$(git ls-files | grep -vF '.github/workflows/ci.yml' | grep -vE '^\.github/scripts/' | xargs grep -lE "$pattern" 2>/dev/null || true)
-            if [ -n "$FOUND" ]; then echo "FAIL: credential in $FOUND"; exit 1; fi
-          done
-          echo "PASS"
-      - name: Agent/workbench marker scan
-        run: |
-          echo "=== Agent/workbench markers ==="
-          for pattern in "@@agent" "@@hermes" "HERMES_RUNTIME" "HANDOFF_CONTEXT" "DELEG_BLOB" "WORKTREE_METADATA" "INTERNAL_MARKER"; do
-            FOUND=$(git ls-files | grep -vF '.github/workflows/ci.yml' | xargs grep -lE "$pattern" 2>/dev/null || true)
-            if [ -n "$FOUND" ]; then echo "FAIL: agent marker in $FOUND"; exit 1; fi
-          done
-          echo "PASS"
-      - name: Hardcoded user-path scan (source only)
-        run: |
-          echo "=== Hardcoded user paths in source ==="
-          SKIP_FILE=".github/workflows/ci.yml"
-          SKIP_PAT="\.github/scripts/"
-          for pattern in "/home/sefi" "/Users/" "/mnt/c/Users"; do
-            FOUND=$(git ls-files | grep -vE '\.(gitignore|gitattributes|md|txt)$' | grep -vF "$SKIP_FILE" | grep -vE "\.github/scripts/" | xargs grep -lF "$pattern" 2>/dev/null || true)
-            if [ -n "$FOUND" ]; then echo "FAIL: hardcoded path $pattern in $FOUND"; exit 1; fi
-          done
-          echo "PASS"
+      - name: Run hygiene checks
+        run: bash .github/scripts/hygiene_check.sh
+
