@@ -82,3 +82,12 @@ jobs:
           fi
       - name: Run PyOD adapter tests against pyod ${{ matrix.pyod-version }}
         run: pytest -q tests/test_pyod_adapters.py
+
+  hygiene:
+    name: Repository Hygiene
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Run hygiene checks
+        run: bash .github/scripts/hygiene_check.sh
+

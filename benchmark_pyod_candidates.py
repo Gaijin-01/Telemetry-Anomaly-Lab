@@ -5,6 +5,7 @@ Detectors: robust-zscore, isolation-forest, dbscan, ecod, lof, knn, hbos, pca
 """
 
 import json
+import os
 import time
 import warnings
 from itertools import combinations
@@ -519,7 +520,7 @@ def main():
         "conclusions": conclusions,
     }
 
-    out_path = "/home/sefi/.hermes/cache/scratch/tal-audit/benchmark_results_fixed.json"
+    out_path = os.environ.get("BENCHMARK_OUTPUT", "benchmark_results_fixed.json")
     with open(out_path, "w") as f:
         json.dump(report, f, indent=2)
 

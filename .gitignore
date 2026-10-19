@@ -1,14 +1,18 @@
 __pycache__/
 *.py[cod]
 *.egg-info/
+*.egg
 .venv/
 venv/
 .pytest_cache/
 .ruff_cache/
+.mypy_cache/
 .coverage
 htmlcov/
 dist/
 build/
+.hypothesis/
+*.whl
 .env
 *.pem
 *.key
@@ -17,3 +21,6 @@ build/
 *.sqlite
 *.db
 *.log
+/tmp/
+*.tmp
+.DS_Store
