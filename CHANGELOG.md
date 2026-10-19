@@ -1,5 +1,32 @@
 # Changelog
 
+## v0.4.2 — Hygiene Sanitation and Benchmark Hardening
+
+### Internal Context Removed
+
+- **DELETE**: `AGENTS.md`, `docs/PROVENANCE.md`, `docs/V0.4.0_BASELINE.md`, `docs/SWARM.md`, `docs/AUDIT_REPORT.md` — contain agent methodology, session paths, and forensic analysis not appropriate for public project documentation
+- **DELETE**: tracked caches `.ruff_cache/`, `.pytest_cache/`, `.idea/`
+- **MOVE**: benchmark harness from repository root to `benchmarks/pyod_candidates.py`
+
+### Benchmark Failure Semantics Fixed
+
+- **No global warning suppression**: removed `warnings.filterwarnings("ignore")` at module level
+- **Explicit failure tracking**: detector failure → `None` score (not zero), excluded from AUC/spearman aggregates via `nanmean`
+- **Non-zero exit on failure**: benchmark exits `sys.exit(1)` if any required detector run fails
+- **Deterministic datasets**: `_make_rng(seed, dataset_id)` with SHA256 hash mixing — same `(id, seed)` always produces identical content
+- **Reproducibility test**: `--test-reproducibility` verifies 32 unique dataset hashes and same-seed stability
+- **Output**: `--output` flag (default `benchmark_results.json`); `--stdout` for console-only
+
+### .gitignore Hardened
+
+Added: `.idea/`, `.vscode/`, `.mypy_cache/`, `.hypothesis/`, `.tox/`, `.nox/`, `.coverage.*`, `coverage.xml`, `*.tar.gz`, `*.zip`, `artifacts/`, `benchmark_results*.json`
+
+### CI Hygiene Gate Hardened
+
+- Section 3 (machine-specific paths): switched from filename-only scan to **content scan** (`git ls-files -z | xargs grep -lF`)
+- Section 6 (hardcoded user paths): removed `*.md`/`*.txt` exclusion — **all textual files now scanned**
+- CI workflow venv path changed from `/tmp/anomaly-lab-smoke` to `/tmp/anomaly-lab-test-smoke` to avoid false-positive match on `/tmp/anomaly-lab` pattern
+
 ## v0.4.1 — PyOD Compatibility Fixes and Hardening
 
 > ⚠️ **Benchmark correction notice**: v0.4.0 benchmark results claiming "HBOS AUC=0.991, PCA AUC=0.969" were computed on a synthetic corpus where the 30 synthetic entries (10 configs × 3 seeds) produced only 3 unique score fingerprints due to a shared RNG state bug in the benchmark generator. The corrected numbers below are from a re-run of the fixed generator producing 32 genuinely unique datasets.
