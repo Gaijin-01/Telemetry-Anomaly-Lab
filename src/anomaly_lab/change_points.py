@@ -1,4 +1,4 @@
-from dataclasses import asdict, dataclass
+from dataclasses import dataclass
 from typing import Any
 
 import numpy as np
@@ -15,10 +15,19 @@ from anomaly_lab.schema import (
 
 @dataclass(frozen=True)
 class ChangePointCandidate:
-    split_position: int
-    left_median: float
-    right_median: float
-    median_shift: float
+    """Retrospective median-shift candidate at a given split boundary."""
+
+    split_position: int  # row index where the right segment begins
+    left_median: float  # median of the left segment
+    right_median: float  # median of the right segment
+    median_shift: float  # |right_median - left_median|
+    left_size: int  # number of rows in left segment
+    right_size: int  # number of rows in right segment
+    support: int  # min(left_size, right_size) — balanced splits preferred
+
+    # raw_sort_key records the original shift before ranking tie-breaking.
+    # It is not serialized; use median_shift for the observed shift magnitude.
+    raw_sort_key: float = 0.0
 
 
 @dataclass(frozen=True)
@@ -34,7 +43,18 @@ class ChangePointResult:
     def to_dict(self) -> dict[str, Any]:
         return {
             "feature": self.feature,
-            "candidates": [asdict(candidate) for candidate in self.candidates],
+            "candidates": [
+                {
+                    "split_position": c.split_position,
+                    "left_median": float(c.left_median),
+                    "right_median": float(c.right_median),
+                    "median_shift": float(c.median_shift),
+                    "left_size": c.left_size,
+                    "right_size": c.right_size,
+                    "support": c.support,
+                }
+                for c in self.candidates
+            ],
             "min_segment": self.min_segment,
             "threshold": self.threshold,
             "order_by": self.order_by,
@@ -51,7 +71,16 @@ def detect_change_points(
     threshold: float,
     order_by: str | None = None,
 ) -> ChangePointResult:
-    """Scan all eligible splits using absolute two-sided median shift, retrospectively."""
+    """Scan all eligible splits using absolute two-sided median shift, retrospectively.
+
+    Candidates are ranked by:
+      1. median_shift (descending) — larger shifts are stronger evidence
+      2. support (descending)       — more balanced splits win ties
+      3. split_position (ascending) — earlier boundary preferred when both tie
+
+    A tiny edge split must not win a tie over a strongly supported central
+    boundary merely because both have the same raw median shift.
+    """
     if (
         isinstance(min_segment, (bool, np.bool_))
         or not isinstance(min_segment, (int, np.integer))
@@ -89,15 +118,33 @@ def detect_change_points(
     if not np.isfinite(values).all():
         raise NonFiniteValueError(f"feature {feature!r} contains non-finite values")
     candidates = []
-    for split in range(min_segment, len(values) - min_segment + 1):
-        left = float(np.median(values[:split]))
-        right = float(np.median(values[split:]))
-        shift = abs(right - left)
-        if not all(np.isfinite(v) for v in (left, right, shift)):
+    total = len(values)
+    for split in range(min_segment, total - min_segment + 1):
+        left = values[:split]
+        right = values[split:]
+        left_median = float(np.median(left))
+        right_median = float(np.median(right))
+        shift = abs(right_median - left_median)
+        if not all(np.isfinite(v) for v in (left_median, right_median, shift)):
             raise NonFiniteValueError("median change-point statistic is non-finite")
         if shift >= threshold:
-            candidates.append(ChangePointCandidate(split, left, right, shift))
-    candidates.sort(key=lambda item: (-item.median_shift, item.split_position))
+            left_size = split
+            right_size = total - split
+            support = min(left_size, right_size)
+            candidates.append(
+                ChangePointCandidate(
+                    split,
+                    left_median,
+                    right_median,
+                    shift,
+                    left_size,
+                    right_size,
+                    support,
+                    raw_sort_key=shift,
+                )
+            )
+    # Primary: larger shift. Tie-break: larger support. Further tie: earlier position.
+    candidates.sort(key=lambda item: (-item.median_shift, -item.support, item.split_position))
     return ChangePointResult(
         feature, tuple(candidates), int(min_segment), float(threshold), order_by
     )
