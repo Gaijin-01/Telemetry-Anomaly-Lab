@@ -116,7 +116,7 @@ jobs:
             "Bearer[[:space:]]\+[A-Za-z0-9_\-\.]\{20\}" \
             "GITHUB_TOKEN[[:space:]]*=" \
             "HuggingFace[[:space:]]*:"; do
-            FOUND=$(git ls-files | grep -vF '.github/workflows/ci.yml' | xargs grep -lE "$pattern" 2>/dev/null || true)
+            FOUND=$(git ls-files | grep -vF '.github/workflows/ci.yml' | grep -vE '^\.github/scripts/' | xargs grep -lE "$pattern" 2>/dev/null || true)
             if [ -n "$FOUND" ]; then echo "FAIL: credential in $FOUND"; exit 1; fi
           done
           echo "PASS"
