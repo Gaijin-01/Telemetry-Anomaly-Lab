@@ -4,9 +4,9 @@ from pathlib import Path
 
 import pytest
 
-SCRATCH = Path("/home/sefi/.hermes/cache/scratch/telemetry-clean-republication/v1")
-EXAMPLES = SCRATCH / "examples"
-sys_path_insert = str(SCRATCH / "src")
+REPO_ROOT = Path(__file__).parent.parent
+EXAMPLES = REPO_ROOT / "examples"
+sys_path_insert = str(REPO_ROOT / "src")
 
 
 class TestCompareAllowDifference:
@@ -201,7 +201,9 @@ class TestTOMLConfig:
     def _toml_file(self, lines):
         import tempfile
 
-        with tempfile.NamedTemporaryFile(suffix=".toml", delete=False, mode="w", dir=EXAMPLES) as f:
+        with tempfile.NamedTemporaryFile(
+            suffix=".toml", delete=False, mode="w", dir=str(EXAMPLES)
+        ) as f:
             f.write("\n".join(lines) + "\n")
             return Path(f.name)
 
