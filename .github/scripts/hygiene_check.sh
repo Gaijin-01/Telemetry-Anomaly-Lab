@@ -52,11 +52,11 @@ MACHINE_PATTERNS=(
 )
 MACHINE_FOUND=""
 for pattern in "${MACHINE_PATTERNS[@]}"; do
-    FOUND=$(git ls-files | grep -F "$pattern" || true)
+    FOUND=$(git ls-files -z | xargs -0 grep -lF "$pattern" 2>/dev/null | grep -vE '\.github/scripts/hygiene_check\.sh$|\.github/workflows/ci\.yml$' || true)
     if [ -n "$FOUND" ]; then
         MACHINE_FOUND+="  pattern='$pattern':\n"
-        FOUND_LINES=$(echo "$FOUND" | head -5)
-        MACHINE_FOUND+="$(echo "$FOUND_LINES" | sed 's/^/    /')\n"
+        FOUND_FILES=$(echo "$FOUND" | head -10)
+        MACHINE_FOUND+="$(echo "$FOUND_FILES" | sed 's/^/    /')\n"
     fi
 done
 if [ -n "$MACHINE_FOUND" ]; then
@@ -132,7 +132,7 @@ USER_PATTERNS=(
 )
 USER_FOUND=""
 for pattern in "${USER_PATTERNS[@]}"; do
-    FOUND=$(git ls-files -z | xargs -0 grep -lE "$pattern" 2>/dev/null | grep -vE '\.(gitignore|gitattributes|md|txt)$' | grep -vE "(^|/)ci\.yml$|\.github/scripts/hygiene_check\.sh$" || true)
+    FOUND=$(git ls-files -z | xargs -0 grep -lE "$pattern" 2>/dev/null | grep -vE '\.github/scripts/hygiene_check\.sh$|\.github/workflows/ci\.yml$' || true)
     if [ -n "$FOUND" ]; then
         USER_FOUND+="  pattern='$pattern': $FOUND\n"
     fi

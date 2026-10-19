@@ -34,10 +34,10 @@ jobs:
         run: pytest -q --ignore=tests/test_pyod_adapters.py
       - name: Ordinary package install and CLI smoke
         run: |
-          python -m venv /tmp/anomaly-lab-smoke
-          /tmp/anomaly-lab-smoke/bin/python -m pip install .
+          python -m venv /tmp/anomaly-lab-test-smoke
+          /tmp/anomaly-lab-test-smoke/bin/python -m pip install .
           cd /tmp
-          /tmp/anomaly-lab-smoke/bin/anomaly-lab --help
+          /tmp/anomaly-lab-test-smoke/bin/anomaly-lab --help
 
   pyod-adapters:
     name: PyOD Adapters (Python 3.12)
