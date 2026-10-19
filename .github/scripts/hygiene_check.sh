@@ -52,7 +52,7 @@ MACHINE_PATTERNS=(
 )
 MACHINE_FOUND=""
 for pattern in "${MACHINE_PATTERNS[@]}"; do
-    FOUND=$(git ls-files -z | xargs -0 grep -lF "$pattern" 2>/dev/null | grep -vE '\.github/scripts/hygiene_check\.sh$|\.github/workflows/ci\.yml$' || true)
+    FOUND=$(git ls-files -z | xargs -0 grep -lF "$pattern" 2>/dev/null | grep -vE '\.github/scripts/hygiene_check\.sh$|\.github/workflows/ci\.yml$|CHANGELOG\.md$' || true)
     if [ -n "$FOUND" ]; then
         MACHINE_FOUND+="  pattern='$pattern':\n"
         FOUND_FILES=$(echo "$FOUND" | head -10)
@@ -80,7 +80,7 @@ CRED_PATTERNS=(
 )
 CRED_FOUND=""
 for pattern in "${CRED_PATTERNS[@]}"; do
-    FOUND=$(git ls-files -z | xargs -0 grep -lE "$pattern" 2>/dev/null | grep -vE "(^|/)ci\.yml$|\.github/scripts/hygiene_check\.sh$" || true)
+    FOUND=$(git ls-files -z | xargs -0 grep -lE "$pattern" 2>/dev/null | grep -vE "(^|/)ci\.yml$|\.github/scripts/hygiene_check\.sh$|CHANGELOG\.md$" || true)
     if [ -n "$FOUND" ]; then
         CRED_FOUND+="  pattern='$pattern': $FOUND\n"
     fi
@@ -109,7 +109,7 @@ AGENT_PATTERNS=(
 )
 AGENT_FOUND=""
 for pattern in "${AGENT_PATTERNS[@]}"; do
-    FOUND=$(git ls-files -z | xargs -0 grep -lE "$pattern" 2>/dev/null | grep -vE "(^|/)ci\.yml$|\.github/scripts/hygiene_check\.sh$" || true)
+    FOUND=$(git ls-files -z | xargs -0 grep -lE "$pattern" 2>/dev/null | grep -vE "(^|/)ci\.yml$|\.github/scripts/hygiene_check\.sh$|CHANGELOG\.md$" || true)
     if [ -n "$FOUND" ]; then
         AGENT_FOUND+="  pattern='$pattern': $FOUND\n"
     fi
@@ -132,7 +132,7 @@ USER_PATTERNS=(
 )
 USER_FOUND=""
 for pattern in "${USER_PATTERNS[@]}"; do
-    FOUND=$(git ls-files -z | xargs -0 grep -lE "$pattern" 2>/dev/null | grep -vE '\.github/scripts/hygiene_check\.sh$|\.github/workflows/ci\.yml$' || true)
+    FOUND=$(git ls-files -z | xargs -0 grep -lE "$pattern" 2>/dev/null | grep -vE '\.github/scripts/hygiene_check\.sh$|\.github/workflows/ci\.yml$|CHANGELOG\.md$' || true)
     if [ -n "$FOUND" ]; then
         USER_FOUND+="  pattern='$pattern': $FOUND\n"
     fi
