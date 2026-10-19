@@ -24,6 +24,21 @@ def analyze(input_path: str, detector: str, features: list[str]) -> DetectionRes
         return dbscan_detector.fit_predict(frame, features)
     if detector == "robust-zscore":
         return robust_detector.fit_predict(frame, features)
+    if detector in ("ecod", "lof", "knn"):
+        try:
+            from anomaly_lab.detectors import pyod_adapters
+
+            if detector == "ecod":
+                return pyod_adapters.fit_predict_ecod(frame, features)
+            if detector == "lof":
+                return pyod_adapters.fit_predict_lof(frame, features)
+            if detector == "knn":
+                return pyod_adapters.fit_predict_knn(frame, features)
+        except ImportError as exc:
+            raise AnomalyLabError(
+                f"detector {detector!r} requires the optional 'pyod' dependency. "
+                "Install it with: pip install 'anomaly-lab[pyod]'"
+            ) from exc
     raise AnomalyLabError(f"unknown detector: {detector}")
 
 
@@ -320,6 +335,34 @@ def _parser() -> argparse.ArgumentParser:
         help="output HTML file (default: report.html)",
     )
 
+    # consensus
+    consensus_parser = subparsers.add_parser(
+        "consensus", help="compute detector consensus across multiple JSON results"
+    )
+    consensus_parser.add_argument(
+        "input",
+        type=Path,
+        help="path to CSV file that was analyzed (for row alignment)",
+    )
+    consensus_parser.add_argument(
+        "--results",
+        action="append",
+        required=True,
+        metavar="RESULT_JSON",
+        help="path to a detector result JSON (may be specified multiple times)",
+    )
+    consensus_parser.add_argument("--output-json", type=Path)
+
+    # inspect
+    inspect_parser = subparsers.add_parser(
+        "inspect", help="classify dataset semantics and show applicable detectors"
+    )
+    inspect_parser.add_argument("data", type=Path, help="path to telemetry CSV")
+    inspect_parser.add_argument(
+        "--features", help="comma-separated feature columns (auto-detected if omitted)"
+    )
+    inspect_parser.add_argument("--output-json", type=Path)
+
     return parser
 
 
@@ -505,6 +548,115 @@ def main(argv: list[str] | None = None) -> int:
             payload = json.loads(result_path.read_text(encoding="utf-8"))
             _produce_html_report(payload, output_path)
             print(f"Report: {output_path}")
+
+        elif args.command == "consensus":
+            from anomaly_lab.consensus import compute_consensus
+            from anomaly_lab.results import DetectionResult
+
+            loaded_results: list[DetectionResult] = []
+            for result_path_str in args.results:
+                result_path = Path(result_path_str)
+                if not result_path.exists():
+                    raise AnomalyLabError(f"result file not found: {result_path}")
+                raw = json.loads(result_path.read_text(encoding="utf-8"))
+                rows_data = raw["rows"]
+                scores = [r["score"] for r in rows_data]
+                is_anomaly = [r["is_anomaly"] for r in rows_data]
+                loaded_results.append(
+                    DetectionResult(
+                        detector=raw["detector"],
+                        row_indices=tuple(r["index"] for r in rows_data),
+                        is_anomaly=tuple(is_anomaly),
+                        features=tuple(raw["features"]),
+                        constant_features=tuple(raw.get("constant_features", [])),
+                        parameters=raw.get("parameters", {}),
+                        scores=tuple(scores),
+                        metadata=raw.get("metadata"),
+                    )
+                )
+            consensus_result = compute_consensus(loaded_results)
+            payload = consensus_result.to_dict()
+            print(
+                f"Consensus: {consensus_result.n_detectors} detectors, "
+                f"{consensus_result.n_anomalies_total} total anomaly flags, "
+                f"evidence_class={consensus_result.evidence_class}"
+            )
+            print(
+                "Consensus is statistical agreement, NOT ground truth; "
+                "3 similar methods count as 1 independent source."
+            )
+
+        elif args.command == "inspect":
+            from anomaly_lab.registry import ALL_DETECTOR_CONTRACTS, check_applicability
+            from anomaly_lab.semantics import classify
+
+            frame = read_csv(args.data)
+            profile = classify(frame)
+
+            # Check applicability for each detector
+            applicable = []
+            not_applicable = []
+            for name, contract in ALL_DETECTOR_CONTRACTS.items():
+                code, reason = check_applicability(
+                    contract,
+                    profile,
+                    len(frame),
+                    constant_features=(),
+                    has_missing=frame.isnull().any().any(),
+                )
+                entry = {"detector": name, "code": code.value, "reason": reason}
+                if code.value == "APPLICABLE":
+                    applicable.append(entry)
+                else:
+                    not_applicable.append(entry)
+
+            payload = {
+                "schema_version": "0.4",
+                "semantics": profile.semantics.value,
+                "has_timestamp": profile.has_timestamp,
+                "has_group_key": profile.has_group_key,
+                "has_pairing_key": profile.has_pairing_key,
+                "ordering_field": profile.ordering_field,
+                "metric_columns": list(profile.metric_columns),
+                "label_column": profile.label_column,
+                "anomaly_intervals": [list(iv) for iv in profile.anomaly_intervals],
+                "assumptions": list(profile.assumptions),
+                "warnings": list(profile.warnings),
+                "applicable_detectors": applicable,
+                "not_applicable_detectors": not_applicable,
+            }
+
+            print(f"Dataset semantics: {profile.semantics.value}")
+            print(f"Rows: {len(frame)}; Columns: {len(frame.columns)}")
+            print(f"Timestamp detected: {profile.has_timestamp}")
+            print(f"Group key detected: {profile.has_group_key}")
+            print(f"Pairing key detected: {profile.has_pairing_key}")
+            print(f"Ordering field: {profile.ordering_field or '(none)'}")
+            print(f"Metric columns: {', '.join(profile.metric_columns) or '(none)'}")
+            print(f"Label column: {profile.label_column or '(none)'}")
+            if profile.anomaly_intervals:
+                print(f"Anomaly intervals: {len(profile.anomaly_intervals)}")
+                for start, end in profile.anomaly_intervals:
+                    print(f"  [{start}, {end}] inclusive")
+            if profile.assumptions:
+                print("Assumptions:")
+                for a in profile.assumptions:
+                    print(f"  - {a}")
+            if profile.warnings:
+                print("Warnings:")
+                for w in profile.warnings:
+                    print(f"  ! {w}")
+            print(f"\nApplicable detectors ({len(applicable)}):")
+            for d in applicable:
+                print(f"  [APPLICABLE] {d['detector']}")
+            if not_applicable:
+                print(f"\nNot applicable detectors ({len(not_applicable)}):")
+                for d in not_applicable:
+                    print(f"  [{d['code']}] {d['detector']}: {d['reason']}")
+            print(
+                "\nIMPORTANT: This classification is advisory only. "
+                "Telemetry-Anomaly-Lab does NOT silently coerce one dataset type into another."
+            )
 
         else:  # analyze
             result = analyze(str(args.input), args.detector, _features(args.features))

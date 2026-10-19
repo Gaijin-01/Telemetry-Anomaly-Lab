@@ -2,6 +2,19 @@
 
 Python 3.11+ offline toolkit for exploratory analysis of explicitly selected numeric telemetry, including LLM/GPU benchmark metrics such as latency, throughput, utilization, and memory. CSV input is supported. Outputs are statistical observations—not proof of regression, root cause, hardware failure, or causality.
 
+## Core Rule
+
+**An anomaly detector produces statistical evidence, not a diagnosis.**
+
+```
+Anomaly               != Regression
+Anomaly               != Root Cause
+Same Cluster          != Equivalence
+No Significant Diff   != Equivalence
+Change Point          != Causal Event
+Detector Consensus    != Ground Truth
+```
+
 ## Install (Ubuntu / WSL)
 
 ```bash
@@ -17,6 +30,25 @@ anomaly-lab --help
 ```
 
 For contributors who want edits under `src/` to take effect without reinstalling, use `python -m pip install -e '.[dev]'` instead. The included example `examples/synthetic_telemetry.csv` is synthetic; no private/local telemetry is required. Every command prints a concise summary. `--output-json PATH` writes detailed strict JSON. Selected feature columns must be numeric and finite; they are never imputed.
+
+## Correct Workflow
+
+```bash
+# 1. Inspect data structure
+anomaly-lab inspect data.csv
+
+# 2. Choose applicable analysis
+#    (inspect output tells you what is valid)
+
+# 3. Run analysis
+anomaly-lab analyze data.csv --detector robust-zscore --features latency
+
+# 4. Quantify uncertainty
+anomaly-lab compare baseline.csv candidate.csv --paired --equivalence-margin 0.05
+
+# 5. Report evidence class
+#    (output includes evidence_class field)
+```
 
 ## Workflow manual: CSV to analysis results
 
