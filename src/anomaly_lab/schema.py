@@ -1,0 +1,26 @@
+class AnomalyLabError(ValueError):
+    """Base error for invalid input or analysis configuration."""
+
+
+class EmptyDataError(AnomalyLabError):
+    """Input contains no rows."""
+
+
+class FeatureSelectionError(AnomalyLabError):
+    """Feature selection is missing, invalid, or uninformative."""
+
+
+class NonNumericFeatureError(AnomalyLabError):
+    """Selected feature is not numeric."""
+
+
+class NonFiniteValueError(AnomalyLabError):
+    """Selected feature contains NaN or infinity."""
+
+
+class InvalidDetectorConfigError(AnomalyLabError):
+    """Detector configuration is invalid."""
+
+
+class InputReadError(AnomalyLabError):
+    """Input file cannot be read as a telemetry CSV."""
