@@ -31,7 +31,7 @@ jobs:
       - name: Compile
         run: python -m compileall -q src
       - name: Tests
-        run: pytest -q
+        run: pytest -q --ignore=tests/test_pyod_adapters.py
       - name: Ordinary package install and CLI smoke
         run: |
           python -m venv /tmp/anomaly-lab-smoke
@@ -78,7 +78,7 @@ jobs:
           if [ "${{ matrix.pyod-version }}" = "current" ]; then
             python -m pip install -e '.[pyod]'
           else
-            python -m pip install -e '.[pyod]' "pyod==${{ matrix.pyod-version }}"
+            python -m pip install "pyod==${{ matrix.pyod-version }}" -e '.[pyod]'
           fi
       - name: Run PyOD adapter tests against pyod ${{ matrix.pyod-version }}
         run: pytest -q tests/test_pyod_adapters.py
