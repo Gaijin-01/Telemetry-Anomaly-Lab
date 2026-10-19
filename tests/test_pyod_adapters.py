@@ -383,3 +383,82 @@ class TestSharedBehavior:
             assert isinstance(result.scores, tuple)
             for s in result.scores:
                 assert isinstance(s, float), f"{name} score {s!r} is not a float"
+
+
+def test_ecod_runner_uses_ecod_class():
+    """Regression: run_ecod must use pyod.models.ecod.ECOD, not PCA.
+
+    Prior bug: run_ecod was implemented as `clf = PyODPCA(...)` — the benchmark
+    labeled PCA results as ECOD. This test proves the identity collision is resolved.
+    """
+    import importlib.util
+    import os
+    import sys
+
+    import numpy as np
+    import pandas as pd
+    from pyod.models.ecod import ECOD
+    from pyod.models.pca import PCA
+
+    repo_root = os.path.join(os.path.dirname(__file__), "..")
+    sys.path.insert(0, repo_root)
+    spec = importlib.util.spec_from_file_location(
+        "pyod_candidates_test", os.path.join(repo_root, "benchmarks", "pyod_candidates.py")
+    )
+    mod = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(mod)
+    run_ecod = mod.run_ecod
+
+    rng = np.random.default_rng(12345)
+    X = rng.standard_normal((60, 4))
+    df = pd.DataFrame(X, columns=["a", "b", "c", "d"])
+
+    ecod_scores, _ = run_ecod(df, ["a", "b", "c", "d"])
+
+    # Ground truth: ECOD and PCA produce different scores on identical data
+    ecod_ref = ECOD(contamination=0.1).fit(X)
+    pca_ref = PCA(contamination=0.1).fit(X)
+
+    assert not np.allclose(ecod_scores, pca_ref.decision_scores_, rtol=0.05), (
+        "run_ecod produced PCA-identical scores — ECOD runner is still broken"
+    )
+    assert np.allclose(ecod_scores, ecod_ref.decision_scores_, rtol=0.001), (
+        "run_ecod scores do not match ECOD ground truth"
+    )
+
+
+def test_pca_runner_uses_pca_class():
+    """Regression: run_pca must use pyod.models.pca.PCA, not ECOD."""
+    import importlib.util
+    import os
+    import sys
+
+    import numpy as np
+    import pandas as pd
+    from pyod.models.ecod import ECOD
+    from pyod.models.pca import PCA
+
+    repo_root = os.path.join(os.path.dirname(__file__), "..")
+    sys.path.insert(0, repo_root)
+    spec = importlib.util.spec_from_file_location(
+        "pyod_candidates_test", os.path.join(repo_root, "benchmarks", "pyod_candidates.py")
+    )
+    mod = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(mod)
+    run_pca = mod.run_pca
+
+    rng = np.random.default_rng(54321)
+    X = rng.standard_normal((60, 4))
+    df = pd.DataFrame(X, columns=["a", "b", "c", "d"])
+
+    pca_scores, _ = run_pca(df, ["a", "b", "c", "d"])
+
+    ecod_ref = ECOD(contamination=0.1).fit(X)
+    pca_ref = PCA(contamination=0.1).fit(X)
+
+    assert not np.allclose(pca_scores, ecod_ref.decision_scores_, rtol=0.05), (
+        "run_pca produced ECOD-identical scores — runner is mislabeled"
+    )
+    assert np.allclose(pca_scores, pca_ref.decision_scores_, rtol=0.001), (
+        "run_pca scores do not match PCA ground truth"
+    )
