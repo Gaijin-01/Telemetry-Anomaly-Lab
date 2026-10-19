@@ -48,7 +48,7 @@ jobs:
         with:
           python-version: '3.12'
       - name: Install package with PyOD extra
-        run: python -m pip install -e '.[pyod]'
+        run: python -m pip install -e '.[dev,pyod]'
       - name: Verify PyOD is installed
         run: python -c "import pyod; print('PyOD version:', pyod.__version__)"
       - name: Run PyOD adapter tests
@@ -76,9 +76,9 @@ jobs:
       - name: Install PyOD ${{ matrix.pyod-version }}
         run: |
           if [ "${{ matrix.pyod-version }}" = "current" ]; then
-            python -m pip install -e '.[pyod]'
+            python -m pip install -e '.[dev,pyod]'
           else
-            python -m pip install "pyod==${{ matrix.pyod-version }}" -e '.[pyod]'
+            python -m pip install "pyod==${{ matrix.pyod-version }}" -e '.[dev,pyod]'
           fi
       - name: Run PyOD adapter tests against pyod ${{ matrix.pyod-version }}
         run: pytest -q tests/test_pyod_adapters.py
