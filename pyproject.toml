@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "llm-telemetry-anomaly-lab"
-version = "0.3.0"
+version = "0.4.0"
 description = "Offline controlled-analysis toolkit for numeric telemetry: anomaly detection, drift, change-points and regime clustering"
 readme = "README.md"
 requires-python = ">=3.11"
