@@ -80,7 +80,7 @@ CRED_PATTERNS=(
 )
 CRED_FOUND=""
 for pattern in "${CRED_PATTERNS[@]}"; do
-    FOUND=$(git ls-files -z | xargs -0 grep -lE "$pattern" 2>/dev/null | grep -v "\.github/workflows/ci\.yml" || true)
+    FOUND=$(git ls-files -z | xargs -0 grep -lE "$pattern" 2>/dev/null | grep -vE "(^|/)ci\.yml$|\.github/scripts/hygiene_check\.sh$" || true)
     if [ -n "$FOUND" ]; then
         CRED_FOUND+="  pattern='$pattern': $FOUND\n"
     fi
@@ -109,7 +109,7 @@ AGENT_PATTERNS=(
 )
 AGENT_FOUND=""
 for pattern in "${AGENT_PATTERNS[@]}"; do
-    FOUND=$(git ls-files -z | xargs -0 grep -lE "$pattern" 2>/dev/null | grep -v "\.github/workflows/ci\.yml" || true)
+    FOUND=$(git ls-files -z | xargs -0 grep -lE "$pattern" 2>/dev/null | grep -vE "(^|/)ci\.yml$|\.github/scripts/hygiene_check\.sh$" || true)
     if [ -n "$FOUND" ]; then
         AGENT_FOUND+="  pattern='$pattern': $FOUND\n"
     fi
@@ -132,7 +132,7 @@ USER_PATTERNS=(
 )
 USER_FOUND=""
 for pattern in "${USER_PATTERNS[@]}"; do
-    FOUND=$(git ls-files -z | xargs -0 grep -lE "$pattern" 2>/dev/null | grep -vE '\.(gitignore|gitattributes|md|txt|yml|yaml)$' | grep -v "\.github/workflows/ci\.yml" || true)
+    FOUND=$(git ls-files -z | xargs -0 grep -lE "$pattern" 2>/dev/null | grep -vE '\.(gitignore|gitattributes|md|txt)$' | grep -vE "(^|/)ci\.yml$|\.github/scripts/hygiene_check\.sh$" || true)
     if [ -n "$FOUND" ]; then
         USER_FOUND+="  pattern='$pattern': $FOUND\n"
     fi
@@ -153,5 +153,5 @@ if [ $FAILED -eq 0 ]; then
     exit 0
 else
     echo "HYGIENE CHECKS FAILED — see above"
-    exit 1
+    exit $FAILED
 fi

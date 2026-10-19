@@ -116,7 +116,7 @@ jobs:
             "Bearer[[:space:]]\+[A-Za-z0-9_\-\.]\{20\}" \
             "GITHUB_TOKEN[[:space:]]*=" \
             "HuggingFace[[:space:]]*:"; do
-            FOUND=$(git ls-files | grep -v ".github/workflows/ci.yml" | xargs grep -lE "$pattern" 2>/dev/null || true)
+            FOUND=$(git ls-files | grep -vF '.github/workflows/ci.yml' | xargs grep -lE "$pattern" 2>/dev/null || true)
             if [ -n "$FOUND" ]; then echo "FAIL: credential in $FOUND"; exit 1; fi
           done
           echo "PASS"
@@ -124,15 +124,17 @@ jobs:
         run: |
           echo "=== Agent/workbench markers ==="
           for pattern in "@@agent" "@@hermes" "HERMES_RUNTIME" "HANDOFF_CONTEXT" "DELEG_BLOB" "WORKTREE_METADATA" "INTERNAL_MARKER"; do
-            FOUND=$(git ls-files | grep -v ".github/workflows/ci.yml" | xargs grep -lE "$pattern" 2>/dev/null || true)
+            FOUND=$(git ls-files | grep -vF '.github/workflows/ci.yml' | xargs grep -lE "$pattern" 2>/dev/null || true)
             if [ -n "$FOUND" ]; then echo "FAIL: agent marker in $FOUND"; exit 1; fi
           done
           echo "PASS"
       - name: Hardcoded user-path scan (source only)
         run: |
           echo "=== Hardcoded user paths in source ==="
+          SKIP_FILE=".github/workflows/ci.yml"
+          SKIP_PAT="\.github/scripts/"
           for pattern in "/home/sefi" "/Users/" "/mnt/c/Users"; do
-            FOUND=$(git ls-files | xargs grep -lE "$pattern" 2>/dev/null | grep -vE '\.(gitignore|gitattributes|md|txt|yml|yaml)$' | grep -v '\.github/workflows/ci\.yml' || true)
+            FOUND=$(git ls-files | grep -vE '\.(gitignore|gitattributes|md|txt)$' | grep -vF "$SKIP_FILE" | grep -vE "\.github/scripts/" | xargs grep -lF "$pattern" 2>/dev/null || true)
             if [ -n "$FOUND" ]; then echo "FAIL: hardcoded path $pattern in $FOUND"; exit 1; fi
           done
           echo "PASS"
