@@ -17,10 +17,20 @@ class RunMetadata:
     version: str
     quantization: str
     concurrency: str
+    allow_difference: tuple[str, ...] = ()
 
     def __post_init__(self) -> None:
-        if any(not isinstance(value, str) or not value.strip() for value in asdict(self).values()):
-            raise AnomalyLabError("run metadata values must be non-empty strings")
+        for field, value in asdict(self).items():
+            if field == "allow_difference":
+                continue  # validated below
+            if not isinstance(value, str) or not value.strip():
+                raise AnomalyLabError("run metadata values must be non-empty strings")
+        known = frozenset(k for k in asdict(self) if k != "allow_difference")
+        for dim in self.allow_difference:
+            if not isinstance(dim, str) or not dim.strip():
+                raise AnomalyLabError("allow_difference values must be non-empty strings")
+            if dim not in known:
+                raise AnomalyLabError(f"allow_difference references unknown dimension: {dim!r}")
 
 
 @dataclass(frozen=True)
@@ -122,6 +132,7 @@ def compare_runs(
         key
         for key in asdict(baseline_metadata)
         if getattr(baseline_metadata, key) != getattr(candidate_metadata, key)
+        and key not in baseline_metadata.allow_difference
     )
     if mismatches:
         return ComparisonResult("NOT_COMPARABLE", (), mismatches, ())

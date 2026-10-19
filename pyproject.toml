@@ -4,8 +4,8 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "llm-telemetry-anomaly-lab"
-version = "0.2.0"
-description = "Small, reproducible anomaly analysis toolkit for numeric telemetry"
+version = "0.3.0"
+description = "Offline controlled-analysis toolkit for numeric telemetry: anomaly detection, drift, change-points and regime clustering"
 readme = "README.md"
 requires-python = ">=3.11"
 license = {file = "LICENSE"}
@@ -13,6 +13,7 @@ dependencies = ["numpy>=1.24", "pandas>=2.0", "scikit-learn>=1.3"]
 
 [project.optional-dependencies]
 dev = ["pytest>=8", "ruff>=0.6"]
+viz = ["matplotlib>=3.7"]
 
 [project.scripts]
 anomaly-lab = "anomaly_lab.cli:main"
@@ -30,3 +31,6 @@ src = ["src"]
 
 [tool.ruff.lint]
 select = ["E", "F", "I", "UP", "B"]
+
+[tool.ruff.lint.per-file-ignores]
+"tests/*" = ["E501"]

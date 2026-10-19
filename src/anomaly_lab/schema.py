@@ -24,3 +24,7 @@ class InvalidDetectorConfigError(AnomalyLabError):
 
 class InputReadError(AnomalyLabError):
     """Input file cannot be read as a telemetry CSV."""
+
+
+class ConfigValidationError(AnomalyLabError):
+    """TOML configuration is invalid or refers to unknown fields."""

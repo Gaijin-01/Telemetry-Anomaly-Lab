@@ -17,12 +17,20 @@ def test_reports_deterministic_median_shift_candidate_and_serializes():
         {"time": pd.date_range("2026-01-01", periods=8), "latency": [1, 1, 1, 1, 5, 5, 5, 5]}
     )
     result = detect_change_points(frame, "latency", min_segment=2, threshold=2, order_by="time")
-    assert result.candidates[0].split_position == 2
-    assert any(candidate.split_position == 4 for candidate in result.candidates)
-    candidate = next(candidate for candidate in result.candidates if candidate.split_position == 4)
-    assert candidate.left_median == 1
-    assert candidate.right_median == 5
-    assert candidate.median_shift == 4
+    # Balanced split (position 4, support=4) ranks above edge split (position 2, support=2)
+    # because support is the primary ranking key.
+    assert result.candidates[0].split_position == 4
+    assert result.candidates[0].support == 4
+    assert result.candidates[0].left_size == 4
+    assert result.candidates[0].right_size == 4
+    assert result.candidates[0].median_shift == 4
+    assert result.candidates[0].left_median == 1
+    assert result.candidates[0].right_median == 5
+    # Edge split at position 2 is still a valid candidate but lower-ranked
+    assert any(c.split_position == 2 for c in result.candidates)
+    edge = next(c for c in result.candidates if c.split_position == 2)
+    assert edge.support == 2  # min(2, 6)
+    assert edge.median_shift == 4
     assert result.retrospective is True
     assert json.dumps(result.to_dict(), allow_nan=False)
 
