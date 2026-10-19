@@ -7,7 +7,7 @@ from sklearn.preprocessing import StandardScaler
 
 from anomaly_lab.features import prepare_features
 from anomaly_lab.results import DetectionResult
-from anomaly_lab.schema import InvalidDetectorConfigError
+from anomaly_lab.schema import FeatureSelectionError, InvalidDetectorConfigError
 
 
 @dataclass(frozen=True)
@@ -20,6 +20,8 @@ def fit_predict(
     frame: pd.DataFrame,
     features: list[str] | tuple[str, ...],
     config: DBSCANConfig | None = None,
+    *,
+    metadata_columns: list[str] | tuple[str, ...] = (),
 ) -> DetectionResult:
     config = config or DBSCANConfig()
     if (
@@ -35,7 +37,20 @@ def fit_predict(
         or config.min_samples < 1
     ):
         raise InvalidDetectorConfigError("min_samples must be a positive integer")
+    if isinstance(metadata_columns, str) or not isinstance(metadata_columns, (list, tuple)):
+        raise FeatureSelectionError("metadata_columns must be a list or tuple of column names")
+    if any(not isinstance(name, str) for name in metadata_columns):
+        raise FeatureSelectionError("metadata column names must be strings")
     prepared = prepare_features(frame, features)
+    selected_metadata = tuple(metadata_columns)
+    if len(set(selected_metadata)) != len(selected_metadata):
+        raise FeatureSelectionError("metadata selection contains duplicates")
+    missing_metadata = [name for name in selected_metadata if name not in frame.columns]
+    if missing_metadata:
+        raise FeatureSelectionError(f"missing metadata column(s): {', '.join(missing_metadata)}")
+    overlap = set(prepared.features) | set(prepared.constant_features)
+    if overlap.intersection(selected_metadata):
+        raise FeatureSelectionError("metadata columns must be separate from selected features")
     if config.min_samples > len(frame):
         raise InvalidDetectorConfigError("min_samples cannot exceed number of input rows")
     scaled = StandardScaler().fit_transform(prepared.values)
@@ -48,8 +63,26 @@ def fit_predict(
         constant_features=prepared.constant_features,
         parameters={"eps": config.eps, "min_samples": config.min_samples},
         clusters=tuple(int(label) for label in labels),
-        metadata={"scaler": "StandardScaler", "score_semantics": None},
+        metadata={
+            "scaler": "StandardScaler",
+            "score_semantics": None,
+            "cluster_id_semantics": "opaque; no semantic meaning",
+            "row_metadata": tuple(
+                {name: _metadata_value(frame.iloc[position][name]) for name in selected_metadata}
+                for position in range(len(frame))
+            ),
+        },
     )
+
+
+def _metadata_value(value: object) -> object:
+    if value is None or value is pd.NA or value is pd.NaT:
+        return None
+    if isinstance(value, (float, np.floating)) and np.isnan(value):
+        return None
+    if isinstance(value, np.generic):
+        return value.item()
+    return value
 
 
 def _index_value(value: object) -> object:
