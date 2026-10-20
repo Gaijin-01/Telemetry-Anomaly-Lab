@@ -1,0 +1,28 @@
+# Scenario: isolation forest on time-series-like data
+# IsolationForest is stochastic; seed fixed for reproducibility.
+
+name = "if_stochastic_reproducible"
+type = "analyze"
+detector = "isolation-forest"
+features = ["x"]
+fixture = "isolation_forest.csv"
+
+expected_evidence_class = "POINT_ANOMALY"
+expected_confidence_min = 0.5
+expected_confidence_max = 1.0
+expected_detector = "isolation-forest"
+anomaly_count_min = 0
+anomaly_count_max = 6
+
+required_evidence_fields = [
+    "evidence_class",
+    "confidence",
+    "detector",
+]
+
+tolerance = 1e-4
+
+required_assumptions = [
+    "contamination",
+    "StandardScaler",
+]

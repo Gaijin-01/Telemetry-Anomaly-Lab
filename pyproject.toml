@@ -36,3 +36,5 @@ select = ["E", "F", "I", "UP", "B"]
 
 [tool.ruff.lint.per-file-ignores]
 "tests/*" = ["E501"]
+"src/anomaly_lab/cli_experiment.py" = ["E402", "E501"]
+"tests/test_scenario_harness.py" = ["E402", "E501"]

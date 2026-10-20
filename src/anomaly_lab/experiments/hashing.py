@@ -6,9 +6,8 @@ import hashlib
 import json
 from typing import Any
 
-from anomaly_lab.experiments.spec import ExperimentSpec
 from anomaly_lab.experiments.result import ExperimentResult
-
+from anomaly_lab.experiments.spec import ExperimentSpec
 
 # Canonical JSON encoder: sorted keys, no whitespace, UTF-8
 _canonical_encoder = json.dumps(
@@ -38,22 +37,18 @@ def canonical_spec_hash(spec: ExperimentSpec) -> str:
     fields (not its object id or memory address).
     """
     hasher = hashlib.sha256()
-    # Fields in deterministic order
-    hasher.update(_canonical_json(spec.experiment_name).encode("utf-8"))
-    hasher.update(_canonical_json(spec.detector_name).encode("utf-8"))
-    # Features are sorted canonically
+    # Fields in deterministic order — all fields that affect experiment semantics
+    hasher.update(_canonical_json(spec.experiment_id).encode("utf-8"))
+    hasher.update(_canonical_json(spec.dataset_hash).encode("utf-8"))
     hasher.update(_canonical_json(tuple(sorted(spec.features))).encode("utf-8"))
-    hasher.update(_canonical_json(spec.dataset_id).encode("utf-8"))
-    hasher.update(_canonical_json(spec.input_hash).encode("utf-8"))
-    hasher.update(canonical_parameters_hash(spec.parameters).encode("utf-8"))
+    hasher.update(_canonical_json(spec.analysis_type).encode("utf-8"))
+    hasher.update(_canonical_json(tuple(sorted(spec.detectors))).encode("utf-8"))
+    hasher.update(_canonical_json(spec.baseline_role).encode("utf-8"))
+    hasher.update(_canonical_json(spec.candidate_role).encode("utf-8"))
+    hasher.update(_canonical_json(spec.metric_direction).encode("utf-8"))
+    hasher.update(_canonical_json(tuple(sorted(spec.thresholds))).encode("utf-8"))
     hasher.update(_canonical_json(spec.random_seed).encode("utf-8"))
-    hasher.update(
-        _canonical_json(spec.semantics.value if spec.semantics else None).encode("utf-8")
-    )
-    hasher.update(
-        _canonical_json(tuple(sorted(spec.constant_features))).encode("utf-8")
-    )
-    hasher.update(_canonical_json(spec.schema_version).encode("utf-8"))
+    hasher.update(_canonical_json(tuple(sorted(spec.allowed_changed_dimensions))).encode("utf-8"))
     return hasher.hexdigest()
 
 
@@ -87,9 +82,7 @@ class ExperimentHasher:
     def __init__(self) -> None:
         self.hash_history: dict[str, str] = {}  # hash -> category
 
-    def compute_and_record(
-        self, result: ExperimentResult, category: str = "experiment"
-    ) -> str:
+    def compute_and_record(self, result: ExperimentResult, category: str = "experiment") -> str:
         """Compute the canonical experiment hash and record it.
 
         Returns the hash.  If the same hash was already recorded,

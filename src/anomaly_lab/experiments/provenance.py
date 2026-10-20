@@ -3,15 +3,14 @@
 from __future__ import annotations
 
 import sys
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from typing import Any
 
 import numpy as np
-import pandas as pd
 
 from anomaly_lab.experiments.hashing import canonical_experiment_hash
-from anomaly_lab.experiments.spec import ExperimentSpec, _safe
 from anomaly_lab.experiments.result import ExperimentResult
+from anomaly_lab.results import _safe
 
 
 def collect_environment() -> dict[str, Any]:
@@ -37,7 +36,7 @@ def collect_environment() -> dict[str, Any]:
         "platform": _platform.platform(),
         "processor": _platform.processor(),
         "dependencies": deps,
-        "collected_at": datetime.now(timezone.utc).isoformat(),
+        "collected_at": datetime.now(UTC).isoformat(),
     }
 
 
@@ -83,8 +82,6 @@ class ProvenanceRecord:
     @classmethod
     def from_result(cls, result: ExperimentResult) -> ProvenanceRecord:
         """Create a ProvenanceRecord from an ExperimentResult."""
-        import platform as _platform
-        import importlib
 
         env = collect_environment()
         spec_dict = result.spec.to_dict()
@@ -95,7 +92,7 @@ class ProvenanceRecord:
             environment=env,
             spec_snapshot=spec_dict,
             result_snapshot=result_dict,
-            collected_at=datetime.now(timezone.utc).isoformat(),
+            collected_at=datetime.now(UTC).isoformat(),
         )
 
     def to_dict(self) -> dict[str, Any]:
@@ -115,15 +112,11 @@ def _result_to_dict(result: ExperimentResult) -> dict[str, Any]:
         "schema_version": result.schema_version,
         "confidence": result.confidence,
         "applicability": result.applicability,
-        "row_indices": [int(i) if isinstance(i, (int, np.integer)) else i for i in result.row_indices],
+        "row_indices": [
+            int(i) if isinstance(i, (int, np.integer)) else i for i in result.row_indices
+        ],
         "is_anomaly": [bool(a) for a in result.is_anomaly],
-        "scores": [
-            float(s) if s is not None else None
-            for s in (result.scores or ())
-        ],
-        "clusters": [
-            int(c) if c is not None else None
-            for c in (result.clusters or ())
-        ],
+        "scores": [float(s) if s is not None else None for s in (result.scores or ())],
+        "clusters": [int(c) if c is not None else None for c in (result.clusters or ())],
         "metadata": _safe(result.metadata or {}),
     }

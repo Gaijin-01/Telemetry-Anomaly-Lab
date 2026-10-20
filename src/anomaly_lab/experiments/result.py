@@ -7,7 +7,8 @@ from typing import Any
 
 import numpy as np
 
-from anomaly_lab.experiments.spec import ExperimentSpec, _safe
+from anomaly_lab.experiments.spec import ExperimentSpec
+from anomaly_lab.results import _safe
 
 
 @dataclass(frozen=True, kw_only=True)
@@ -55,9 +56,7 @@ class ExperimentResult:
         if self.scores is not None:
             if len(self.scores) != size:
                 raise ValueError("scores length must match row_indices")
-            if any(
-                score is not None and not np.isfinite(score) for score in self.scores
-            ):
+            if any(score is not None and not np.isfinite(score) for score in self.scores):
                 raise ValueError("scores must be finite or None")
         if self.clusters is not None and len(self.clusters) != size:
             raise ValueError("clusters length must match row_indices")
@@ -74,18 +73,11 @@ class ExperimentResult:
             "confidence": self.confidence,
             "applicability": self.applicability,
             "row_indices": [
-                int(i) if np.issubdtype(type(i), np.integer) else i
-                for i in self.row_indices
+                int(i) if np.issubdtype(type(i), np.integer) else i for i in self.row_indices
             ],
             "is_anomaly": [bool(a) for a in self.is_anomaly],
-            "scores": [
-                float(s) if s is not None else None
-                for s in (self.scores or ())
-            ],
-            "clusters": [
-                int(c) if c is not None else None
-                for c in (self.clusters or ())
-            ],
+            "scores": [float(s) if s is not None else None for s in (self.scores or ())],
+            "clusters": [int(c) if c is not None else None for c in (self.clusters or ())],
             "rows": [
                 {
                     "position": position,
@@ -97,9 +89,7 @@ class ExperimentResult:
                         else None
                     ),
                     "cluster": (
-                        int(self.clusters[position])
-                        if self.clusters is not None
-                        else None
+                        int(self.clusters[position]) if self.clusters is not None else None
                     ),
                 }
                 for position, (index, anomaly) in enumerate(

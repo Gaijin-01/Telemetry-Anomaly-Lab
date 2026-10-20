@@ -2,16 +2,12 @@
 
 from __future__ import annotations
 
-from typing import Any
-
 from anomaly_lab.experiments.hashing import (
     canonical_experiment_hash,
-    canonical_spec_hash,
 )
 from anomaly_lab.experiments.provenance import ProvenanceRecord
-from anomaly_lab.experiments.spec import ExperimentSpec
 from anomaly_lab.experiments.result import ExperimentResult
-from anomaly_lab.semantics import DatasetSemantics
+from anomaly_lab.experiments.spec import ExperimentSpec
 
 
 class ExperimentReplay:
@@ -56,21 +52,23 @@ class ExperimentReplay:
     def _reconstruct_spec(self) -> ExperimentSpec:
         """Reconstruct ExperimentSpec from spec_snapshot."""
         snap = self.provenance.spec_snapshot
-        semantics_val = snap.get("semantics")
-        semantics = DatasetSemantics(semantics_val) if semantics_val else None
 
         return ExperimentSpec(
-            experiment_name=snap["experiment_name"],
-            detector_name=snap["detector_name"],
+            experiment_id=snap["experiment_id"],
+            dataset_path=snap["dataset_path"],
+            dataset_hash=snap["dataset_hash"],
             features=tuple(snap["features"]),
-            dataset_id=snap["dataset_id"],
-            input_hash=snap["input_hash"],
-            parameters=snap.get("parameters"),
-            random_seed=snap.get("random_seed"),
-            semantics=semantics,
-            constant_features=tuple(snap.get("constant_features") or []),
-            metadata=snap.get("metadata"),
-            schema_version=snap.get("schema_version", "0.5"),
+            analysis_type=snap.get("analysis_type", "anomaly_detection"),
+            detectors=tuple(snap.get("detectors") or ()),
+            baseline_role=snap.get("baseline_role"),
+            candidate_role=snap.get("candidate_role"),
+            metric_direction=snap.get("metric_direction"),
+            thresholds=tuple(snap.get("thresholds") or ()),
+            random_seed=snap.get("random_seed", 42),
+            allowed_changed_dimensions=tuple(snap.get("allowed_changed_dimensions") or ()),
+            environment_metadata=tuple(snap.get("environment_metadata") or ()),
+            explicit_assumptions=tuple(snap.get("explicit_assumptions") or ()),
+            metadata=tuple(snap.get("metadata") or ()),
         )
 
     def _reconstruct_result(self, spec: ExperimentSpec) -> ExperimentResult:

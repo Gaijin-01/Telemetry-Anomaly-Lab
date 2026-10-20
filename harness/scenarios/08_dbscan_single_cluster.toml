@@ -1,0 +1,23 @@
+# Scenario: DBSCAN clustering — cohesive cluster, no noise
+# Tightly packed data should form a single cluster with no noise points.
+
+name = "dbscan_single_cluster"
+type = "analyze"
+detector = "dbscan"
+features = ["x"]
+fixture = "dbscan_cluster.csv"
+
+expected_evidence_class = "NOT_APPLICABLE"
+expected_confidence_min = 0.9
+expected_confidence_max = 1.0
+expected_detector = "dbscan"
+anomaly_count_min = 0
+anomaly_count_max = 0
+
+required_evidence_fields = [
+    "evidence_class",
+    "confidence",
+    "detector",
+]
+
+tolerance = 1e-4

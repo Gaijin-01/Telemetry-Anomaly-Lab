@@ -1,104 +1,115 @@
-"""Experiment specification: frozen, hashable, validatable experiment configuration."""
+"""Experiment specification: frozen dataclass, immutable, validated."""
 
 from __future__ import annotations
 
-from dataclasses import dataclass, field
-from typing import Any
+from dataclasses import dataclass
 
-import numpy as np
-
-from anomaly_lab.semantics import DatasetSemantics
+VALID_ANALYSIS_TYPES = frozenset({"anomaly_detection", "compare", "change_point", "regime"})
+VALID_METRIC_DIRECTIONS = frozenset({"higher_is_better", "lower_is_better"})
 
 
 @dataclass(frozen=True, kw_only=True)
 class ExperimentSpec:
-    """Frozen, hashable specification of a single anomaly-detection experiment.
+    """Immutable, validated experiment specification.
 
     Attributes
     ----------
-    experiment_name :
-        Human-readable name for this experiment.
-    detector_name :
-        Name of the detector to run (e.g. "robust-zscore", "isolation-forest").
-    features :
+    experiment_id:
+        Stable, human-readable identifier for the experiment.
+    dataset_path:
+        Path to the dataset file used for this experiment.
+    dataset_hash:
+        SHA256 hash of the dataset content (dataset_hash).
+    features:
         Tuple of feature column names used in this experiment.
-    dataset_id :
-        Identifier for the input dataset.
-    input_hash :
-        SHA256 hash of the canonical input data snapshot.
-    parameters :
-        Detector-specific hyperparameter dict.  None is canonical for
-        detectors that take no parameters.
-    random_seed :
-        Random seed for stochastic detectors.  None if the detector is
-        deterministic or no seed was set.
-    semantics :
-        Dataset semantics classification at the time the experiment was run.
-    constant_features :
-        Feature columns that were found to be constant and excluded.
-    metadata :
-        Arbitrary caller-supplied key/value store.  None is equivalent to {}.
-    schema_version :
-        Schema version for forward/backward compatibility.
+    metadata:
+        Key-value pairs describing the spec.
+    analysis_type:
+        One of "anomaly_detection", "compare", "change_point", or "regime".
+    detectors:
+        Names of detectors to apply.
+    baseline_role:
+        Role name of the baseline dataset used in "compare" mode.
+    candidate_role:
+        Role name of the candidate dataset used in "compare" mode.
+    metric_direction:
+        One of "higher_is_better", "lower_is_better", or None.
+    thresholds:
+        Tuple of (metric_name, threshold_value) pairs.
+    random_seed:
+        Integer random seed for reproducibility.
+    allowed_changed_dimensions:
+        Feature dimensions that may differ between baseline and candidate.
+    environment_metadata:
+        Key-value pairs describing the environment at creation time.
+    explicit_assumptions:
+        Human-readable assumptions held by this experiment.
     """
 
-    experiment_name: str
-    detector_name: str
+    experiment_id: str
+    dataset_path: str
+    dataset_hash: str
     features: tuple[str, ...]
-    dataset_id: str
-    input_hash: str
-    parameters: dict[str, Any] | None = None
-    random_seed: int | None = None
-    semantics: DatasetSemantics | None = None
-    constant_features: tuple[str, ...] = ()
-    metadata: dict[str, Any] | None = None
-    schema_version: str = "0.5"
+    metadata: tuple[tuple[str, str], ...] = ()
+    analysis_type: str = "anomaly_detection"
+    detectors: tuple[str, ...] = ()
+    baseline_role: str | None = None
+    candidate_role: str | None = None
+    metric_direction: str | None = None
+    thresholds: tuple[tuple[str, float], ...] = ()
+    random_seed: int = 42
+    allowed_changed_dimensions: tuple[str, ...] = ()
+    environment_metadata: tuple[tuple[str, str], ...] = ()
+    explicit_assumptions: tuple[str, ...] = ()
 
     def __post_init__(self) -> None:
-        if not self.experiment_name or not self.experiment_name.strip():
-            raise ValueError("experiment_name cannot be empty")
-        if not self.detector_name or not self.detector_name.strip():
-            raise ValueError("detector_name cannot be empty")
+        if not self.experiment_id or not self.experiment_id.strip():
+            raise ValueError("experiment_id must be a non-empty string")
+        if not self.dataset_path or not self.dataset_path.strip():
+            raise ValueError("dataset_path must be a non-empty string")
+        if not self.dataset_hash or not self.dataset_hash.strip():
+            raise ValueError("dataset_hash must be a non-empty string")
         if not self.features:
             raise ValueError("features cannot be empty")
         if len(self.features) != len(set(self.features)):
             raise ValueError("features contains duplicate entries")
-        if not self.dataset_id or not self.dataset_id.strip():
-            raise ValueError("dataset_id cannot be empty")
-        if not self.input_hash or not self.input_hash.strip():
-            raise ValueError("input_hash cannot be empty")
+        if self.analysis_type not in VALID_ANALYSIS_TYPES:
+            raise ValueError(
+                f"analysis_type must be one of {VALID_ANALYSIS_TYPES}, got {self.analysis_type!r}"
+            )
+        if self.analysis_type == "compare":
+            if not self.baseline_role:
+                raise ValueError("analysis_type='compare' requires baseline_role")
+            if not self.candidate_role:
+                raise ValueError("analysis_type='compare' requires candidate_role")
+        if (
+            self.metric_direction is not None
+            and self.metric_direction not in VALID_METRIC_DIRECTIONS
+        ):
+            raise ValueError(
+                f"metric_direction must be one of {VALID_METRIC_DIRECTIONS} or None, "
+                f"got {self.metric_direction!r}"
+            )
+        # Thresholds require non-empty features
+        if self.thresholds and not self.features:
+            raise ValueError("thresholds requires features to be non-empty")
 
-    def to_dict(self) -> dict[str, Any]:
-        """Serialize to a JSON-serializable dict."""
+    def to_dict(self) -> dict:
+        """Serialize to a JSON-compatible dict."""
         return {
-            "experiment_name": self.experiment_name,
-            "detector_name": self.detector_name,
+            "experiment_id": self.experiment_id,
+            "dataset_path": self.dataset_path,
+            "dataset_hash": self.dataset_hash,
             "features": list(self.features),
-            "dataset_id": self.dataset_id,
-            "input_hash": self.input_hash,
-            "parameters": _safe(self.parameters or {}),
+            "metadata": list(self.metadata),
+            "analysis_type": self.analysis_type,
+            "detectors": list(self.detectors),
+            "baseline_role": self.baseline_role,
+            "candidate_role": self.candidate_role,
+            "metric_direction": self.metric_direction,
+            "thresholds": list(self.thresholds),
             "random_seed": self.random_seed,
-            "semantics": self.semantics.value if self.semantics else None,
-            "constant_features": list(self.constant_features),
-            "metadata": _safe(self.metadata or {}),
-            "schema_version": self.schema_version,
+            "allowed_changed_dimensions": list(self.allowed_changed_dimensions),
+            "environment_metadata": list(self.environment_metadata),
+            "explicit_assumptions": list(self.explicit_assumptions),
         }
-
-
-def _safe(value: Any) -> Any:
-    """Recursively convert numpy / pandas types to JSON-safe Python types."""
-    if isinstance(value, dict):
-        return {str(k): _safe(v) for k, v in value.items()}
-    if isinstance(value, (list, tuple)):
-        return [_safe(item) for item in value]
-    if isinstance(value, np.ndarray):
-        return [_safe(item) for item in value.tolist()]
-    if isinstance(value, (np.integer,)):
-        return int(value)
-    if isinstance(value, (np.floating,)):
-        return float(value)
-    if isinstance(value, np.bool_):
-        return bool(value)
-    if value is None or isinstance(value, (str, int, float, bool)):
-        return value
-    return str(value)

@@ -10,10 +10,7 @@ Output is TOML only, per project requirement.
 
 from __future__ import annotations
 
-import io
-import json
-import sys
-from dataclasses import dataclass, field, asdict
+from dataclasses import dataclass
 from enum import Enum
 from pathlib import Path
 from typing import Any
@@ -21,13 +18,11 @@ from typing import Any
 import numpy as np
 import pandas as pd
 
-from anomaly_lab.experiments.planner import ExperimentPlan, ComponentKind, PlannedStep
-from anomaly_lab.ingest import read_csv
-from anomaly_lab.semantics import classify
-from anomaly_lab import consensus as consensus_module
 from anomaly_lab import change_points as change_points_module
+from anomaly_lab import consensus as consensus_module
 from anomaly_lab import regimes as regimes_module
-from anomaly_lab.compare import MetricRule, compare_runs, RunMetadata
+from anomaly_lab.experiments.planner import ComponentKind, ExperimentPlan, PlannedStep
+from anomaly_lab.ingest import read_csv
 from anomaly_lab.results import DetectionResult
 
 # ------------------------------------------------------------------ #
@@ -279,13 +274,15 @@ def _execute_step(
         )
 
 
-def _run_detector(
-    step: PlannedStep, frame: pd.DataFrame, features: tuple[str, ...]
-) -> StepResult:
+def _run_detector(step: PlannedStep, frame: pd.DataFrame, features: tuple[str, ...]) -> StepResult:
     """Run a single detector and return a StepResult."""
     from anomaly_lab.detectors import (
-        isolation_forest as iso_detector,
         dbscan as dbscan_detector,
+    )
+    from anomaly_lab.detectors import (
+        isolation_forest as iso_detector,
+    )
+    from anomaly_lab.detectors import (
         robust_zscore as robust_detector,
     )
 
@@ -417,17 +414,22 @@ def _run_consensus(
 ) -> StepResult:
     """Run consensus computation and return a StepResult."""
     try:
-        if len(detection_results) < 2:
+        # Filter to only detectors that produce scores (DBSCAN does not)
+        scoring_results = [r for r in detection_results if r.scores is not None]
+        if len(scoring_results) < 2:
             return StepResult(
                 kind=ComponentKind.CONSENSUS,
                 name="consensus",
                 status=StepStatus.SKIPPED,
                 payload={},
-                error="Consensus requires at least 2 detection results; fewer were produced",
+                error=(
+                    f"Consensus requires at least 2 scoring detectors; "
+                    f"got {len(scoring_results)} (detectors without scores are excluded)"
+                ),
             )
         score_percentile = params.get("score_percentile", True)
         result = consensus_module.compute_consensus(
-            detection_results, score_percentile=score_percentile
+            scoring_results, score_percentile=score_percentile
         )
         return StepResult(
             kind=ComponentKind.CONSENSUS,
@@ -447,6 +449,14 @@ def _run_consensus(
 
 def _dict_to_detection_result(d: dict[str, Any]) -> DetectionResult:
     """Reconstruct a DetectionResult from its to_dict() representation."""
+    # Scores are embedded in rows (from DetectionResult.to_dict())
+    scores = tuple(r["score"] for r in d["rows"]) if d["rows"] else None
+    # Only set scores if at least one row has a non-None score
+    if scores and any(s is not None for s in scores):
+        scores = scores
+    else:
+        scores = None
+
     return DetectionResult(
         detector=d["detector"],
         row_indices=tuple(r["index"] for r in d["rows"]),
@@ -454,7 +464,7 @@ def _dict_to_detection_result(d: dict[str, Any]) -> DetectionResult:
         features=tuple(d["features"]),
         constant_features=tuple(d.get("constant_features", [])),
         parameters=d.get("parameters", {}),
-        scores=tuple(r["score"] for r in d["rows"]) if d.get("scores") else None,
+        scores=scores,
         clusters=tuple(r["cluster"] for r in d["rows"]) if "clusters" in d else None,
         metadata=d.get("metadata"),
         schema_version=d.get("schema_version", "0.4"),
@@ -465,61 +475,22 @@ def _dict_to_detection_result(d: dict[str, Any]) -> DetectionResult:
     )
 
 
-def _write_toml(result: PlanExecutionResult, path: Path) -> None:
-    """Write PlanExecutionResult to a TOML file."""
-    toml_str = result.to_toml()
-    path.write_text(toml_str, encoding="utf-8")
-
-
 def _dict_to_toml(obj: Any, indent: str = "  ") -> str:
-    """Simple dict-to-TOML serializer for PlanExecutionResult structure."""
-    lines: list[str] = []
-    _write_value(lines, obj, "", indent)
-    return "\n".join(lines) + "\n"
+    """Serialize a dict to TOML string using the toml library."""
+    import toml
+
+    # Convert to TOML-compatible structure
+    serializable = _make_toml_compatible(obj)
+    return toml.dumps(serializable)
 
 
-def _write_value(lines: list[str], obj: Any, prefix: str, indent: str) -> None:
-    """Recursively write a Python value as TOML."""
-    if obj is None:
-        lines.append(f"{prefix}= null")
-    elif isinstance(obj, bool):
-        lines.append(f"{prefix}= {'true' if obj else 'false'}")
-    elif isinstance(obj, (int, float, str)):
-        if isinstance(obj, float):
-            lines.append(f"{prefix}= {obj}")
-        else:
-            lines.append(f"{prefix}= {obj}")
-    elif isinstance(obj, dict):
-        if prefix:
-            lines.append(f"{prefix}= {{")
-            for k, v in obj.items():
-                _write_value(lines, v, f"{indent}{k}", indent)
-            lines.append(f"{indent}}}")
-        else:
-            for k, v in obj.items():
-                _write_value(lines, v, str(k), indent)
-    elif isinstance(obj, (list, tuple)):
-        if not obj:
-            lines.append(f"{prefix}= []")
-            return
-        # Check if it's a list of dicts (table array)
-        if all(isinstance(item, dict) for item in obj):
-            for i, item in enumerate(obj):
-                lines.append(f"[[{prefix}]]")
-                for k, v in item.items():
-                    _write_value(lines, v, f"{indent}{k}", indent)
-        else:
-            # Inline array
-            items = []
-            for item in obj:
-                if item is None:
-                    items.append("null")
-                elif isinstance(item, bool):
-                    items.append("true" if item else "false")
-                elif isinstance(item, (int, float, str)):
-                    items.append(repr(item))
-                else:
-                    items.append(str(item))
-            lines.append(f"{prefix}= [{', '.join(items)}]")
-    else:
-        lines.append(f"{prefix}= {repr(obj)}")
+def _toml_string_value(s: str) -> str:
+    """Quote a string for TOML, handling special characters."""
+    import toml
+
+    return toml.dumps({"": s}).strip()
+
+
+def _write_toml(result: PlanExecutionResult, path: Path) -> None:
+    """Write plan execution result to a TOML file."""
+    path.write_text(result.to_toml())

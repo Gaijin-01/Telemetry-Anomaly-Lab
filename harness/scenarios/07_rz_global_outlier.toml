@@ -1,0 +1,28 @@
+# Scenario: global outlier — majority of points are anomalous
+# With majority anomalous, robust z-score flags the minority normal points.
+# Evidence class is LOCAL_OUTLIER when anomaly fraction < 50%%.
+
+name = "rz_global_outlier"
+type = "analyze"
+detector = "robust-zscore"
+features = ["x", "y"]
+fixture = "global_outlier.csv"
+
+expected_evidence_class = "LOCAL_OUTLIER"
+expected_confidence_min = 0.5
+expected_confidence_max = 1.0
+expected_detector = "robust-zscore"
+anomaly_count_min = 1
+anomaly_count_max = 6
+
+required_evidence_fields = [
+    "evidence_class",
+    "confidence",
+    "detector",
+]
+
+tolerance = 1e-4
+
+required_assumptions = [
+    "median_and_MAD",
+]

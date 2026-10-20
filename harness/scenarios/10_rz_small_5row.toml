@@ -1,0 +1,23 @@
+# Scenario: small dataset — exactly 5 rows
+# Edge case: minimum viable dataset.
+
+name = "rz_small_5row"
+type = "analyze"
+detector = "robust-zscore"
+features = ["x"]
+fixture = "small_5row.csv"
+
+# With n=5 and tight values, may flag nothing
+expected_evidence_class = "INCONCLUSIVE"
+expected_confidence_min = 0.0
+expected_confidence_max = 0.6
+expected_detector = "robust-zscore"
+anomaly_count_min = 0
+anomaly_count_max = 1
+
+required_evidence_fields = [
+    "evidence_class",
+    "detector",
+]
+
+tolerance = 1e-4

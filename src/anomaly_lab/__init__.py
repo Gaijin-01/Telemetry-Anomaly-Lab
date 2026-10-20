@@ -12,6 +12,9 @@ from anomaly_lab.compare import (
 from anomaly_lab.compare import (
     RunMetadata as RunMetadata,
 )
+
+# experiments module not yet available in this version
+# from anomaly_lab.experiments.plan import plan
 from anomaly_lab.ingest import read_csv as read_csv
 from anomaly_lab.registry import (
     ALL_DETECTOR_CONTRACTS as ALL_DETECTOR_CONTRACTS,

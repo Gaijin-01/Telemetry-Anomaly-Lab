@@ -1,0 +1,28 @@
+# Scenario: multiple outliers — robust zscore with several exceedances
+# Several points above threshold; evidence class should reflect multiple flags.
+
+name = "rz_multi_outlier"
+type = "analyze"
+detector = "robust-zscore"
+features = ["x"]
+fixture = "rz_multi_outlier.csv"
+
+expected_evidence_class = "LOCAL_OUTLIER"
+expected_confidence_min = 0.5
+expected_confidence_max = 1.0
+expected_detector = "robust-zscore"
+anomaly_count_min = 1
+anomaly_count_max = 5
+
+required_evidence_fields = [
+    "evidence_class",
+    "confidence",
+    "detector",
+    "supporting_metrics",
+]
+
+tolerance = 1e-4
+
+required_assumptions = [
+    "median_and_MAD",
+]

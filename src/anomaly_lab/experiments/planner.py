@@ -15,11 +15,11 @@ import pandas as pd
 
 from anomaly_lab.registry import (
     ALL_DETECTOR_CONTRACTS,
-    DetectorContract,
     ApplicabilityCode,
+    DetectorContract,
     check_applicability,
 )
-from anomaly_lab.semantics import classify, DatasetProfile
+from anomaly_lab.semantics import DatasetProfile, classify
 
 if TYPE_CHECKING:
     pass
@@ -232,9 +232,7 @@ def plan(
     if include_change_points:
         cp_reason = _change_points_applicable_reason(profile, n_samples)
         cp_code = (
-            ApplicabilityCode.APPLICABLE
-            if cp_reason is None
-            else ApplicabilityCode.NOT_APPLICABLE
+            ApplicabilityCode.APPLICABLE if cp_reason is None else ApplicabilityCode.NOT_APPLICABLE
         )
         records.append(
             ApplicabilityRecord(
@@ -249,9 +247,7 @@ def plan(
     if include_regimes:
         reg_reason = _regimes_applicable_reason(n_samples)
         reg_code = (
-            ApplicabilityCode.APPLICABLE
-            if reg_reason is None
-            else ApplicabilityCode.NOT_APPLICABLE
+            ApplicabilityCode.APPLICABLE if reg_reason is None else ApplicabilityCode.NOT_APPLICABLE
         )
         records.append(
             ApplicabilityRecord(
@@ -278,9 +274,7 @@ def plan(
         )
 
     # 2. Change-points scan (if applicable)
-    if include_change_points and (
-        profile.ordering_field is not None or profile.has_timestamp
-    ):
+    if include_change_points and (profile.ordering_field is not None or profile.has_timestamp):
         steps.append(
             PlannedStep(
                 kind=ComponentKind.CHANGE_POINTS,

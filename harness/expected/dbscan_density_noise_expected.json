@@ -1,0 +1,7 @@
+{
+  "scenario": "dbscan_density_noise",
+  "expected_evidence_class": "DENSITY_NOISE",
+  "expected_confidence_range": [0.5, 1.0],
+  "expected_detector": "dbscan",
+  "expected_anomaly_count_range": [1, 6]
+}
