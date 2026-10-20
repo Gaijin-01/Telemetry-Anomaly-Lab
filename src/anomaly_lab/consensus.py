@@ -20,7 +20,7 @@ class ConsensusResult:
     consensus_count: list[int]  # per-row: how many detectors agree
     dissenting_detectors: list[list[str]]  # per-row: which detectors disagree
     detector_families: dict[str, str]  # detector -> family
-    schema_version: str = "0.4"
+    schema_version: str = "0.5"
     evidence_class: str = "CONSENSUS_SUPPORTING_EVIDENCE"
 
     def to_dict(self) -> dict[str, Any]:

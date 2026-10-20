@@ -242,7 +242,7 @@ class TestEvaluationResultDataclass:
         assert d["precision"] == 0.8
         assert d["pr_auc"] == 0.75
         assert d["vus_pr"] == 0.65
-        assert d["schema_version"] == "0.4"
+        assert d["schema_version"] == "0.5"
         assert d["evaluator_note"] == "VUS-PR computed"
 
     def test_vus_pr_none_in_dict(self):

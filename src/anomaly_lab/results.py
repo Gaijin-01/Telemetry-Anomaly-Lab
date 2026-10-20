@@ -17,7 +17,7 @@ class DetectionResult:
     clusters: tuple[int, ...] | None = None
     metadata: dict[str, Any] | None = None
     # Phase N fields
-    schema_version: str = "0.4"
+    schema_version: str = "0.5"
     dataset_semantics: str | None = None
     evidence_class: str = ""
     confidence: float | None = None

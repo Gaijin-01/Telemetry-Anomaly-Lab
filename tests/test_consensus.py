@@ -217,7 +217,7 @@ class TestComputeConsensusResult:
         d = result.to_dict()
         assert isinstance(d, dict)
         assert d["n_detectors"] == 2
-        assert d["schema_version"] == "0.4"
+        assert d["schema_version"] == "0.5"
         assert d["evidence_class"] == "CONSENSUS_SUPPORTING_EVIDENCE"
         assert "_caveat" in d
         assert "not ground truth" in d["_caveat"]
