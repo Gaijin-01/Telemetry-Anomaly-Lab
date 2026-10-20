@@ -10,13 +10,9 @@ from __future__ import annotations
 
 import math
 from dataclasses import dataclass
-from pathlib import Path
 from typing import Any
 
-import numpy as np
-
 from anomaly_lab.evidence import EvidenceClass
-
 
 # ─────────────────────────────────────────────────────────────────────────────
 # Result types
@@ -221,9 +217,7 @@ def evaluate_scenario(
         check = _check_evidence_class(actual_ec, ec_spec)
         checks.append(check)
         if not check.passed:
-            errors.append(
-                f"evidence_class mismatch: expected {ec_spec!r}, got {actual_ec!r}"
-            )
+            errors.append(f"evidence_class mismatch: expected {ec_spec!r}, got {actual_ec!r}")
 
     # ── Confidence bounds ──────────────────────────────────────────────────
     conf_min = scenario_spec.get("expected_confidence_min")
@@ -260,8 +254,7 @@ def evaluate_scenario(
             )
             if not passed:
                 errors.append(
-                    f"confidence {actual_conf} outside specified range "
-                    f"[{conf_min}, {conf_max}]"
+                    f"confidence {actual_conf} outside specified range [{conf_min}, {conf_max}]"
                 )
 
     # ── Required evidence fields (must be present and non-null) ─────────────
@@ -329,8 +322,7 @@ def evaluate_scenario(
         )
         if not passed:
             errors.append(
-                f"detector mismatch: expected {expected_detector!r}, "
-                f"got {actual_detector!r}"
+                f"detector mismatch: expected {expected_detector!r}, got {actual_detector!r}"
             )
 
     # ── Required assumptions ───────────────────────────────────────────────
@@ -389,7 +381,11 @@ def evaluate_scenario(
                 actual=anomaly_count,
                 passed=passed,
                 tolerance=None,
-                note="" if passed else f"out of range [{scenario_spec.get('anomaly_count_min')}, {scenario_spec.get('anomaly_count_max')}]",
+                note="out of range ["
+                f"{scenario_spec.get('anomaly_count_min')}, "
+                f"{scenario_spec.get('anomaly_count_max')}]"
+                if not passed
+                else "",
             )
         )
         if not passed:

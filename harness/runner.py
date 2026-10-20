@@ -18,7 +18,6 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
 
-import numpy as np
 import pandas as pd
 
 # The runner can be invoked as a library or as a CLI entry point.
@@ -140,8 +139,10 @@ def _build_analyze_command(spec: dict[str, Any], tmp_dir: Path) -> CommandSpec:
 
     args = [
         str(input_arg),
-        "--detector", detector,
-        "--features", ",".join(features) if isinstance(features, list) else features,
+        "--detector",
+        detector,
+        "--features",
+        ",".join(features) if isinstance(features, list) else features,
     ]
 
     output = tmp_dir / f"result_{spec.get('name', 'analyze')}.json"
@@ -247,7 +248,7 @@ def run_scenario(
         if output_arg and Path(output_arg).exists():
             try:
                 result_json = json.loads(Path(output_arg).read_text(encoding="utf-8"))
-            except json.JSONDecodeError as exc:
+            except json.JSONDecodeError:
                 pass  # leave result_json as None — success=False
 
         return RunResult(

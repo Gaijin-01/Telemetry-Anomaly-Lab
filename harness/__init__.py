@@ -2,10 +2,10 @@
 
 from harness.evaluator import EvaluationOutcome, SemanticCheck, evaluate_scenario
 from harness.runner import (
+    REPO_ROOT,
     BatchResult,
     CommandSpec,
     HarnessError,
-    REPO_ROOT,
     RunResult,
     discover_scenarios,
     load_scenario,

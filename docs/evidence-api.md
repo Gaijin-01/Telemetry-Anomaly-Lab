@@ -11,15 +11,15 @@ The Evidence API translates raw anomaly-detection and comparison results into st
 ```python
 @dataclass(frozen=True, kw_only=True)
 class EvidenceRecord:
-    evidence_class: str          # EvidenceClass enum value
-    confidence: float | None      # 0.0–1.0, or None
-    detector: str | None          # e.g. "robust-zscore", "dbscan"
-    score: float | None           # Top anomaly score
-    threshold: float | None       # Detection threshold used
+    evidence_class: str  # EvidenceClass enum value
+    confidence: float | None  # 0.0–1.0, or None
+    detector: str | None  # e.g. "robust-zscore", "dbscan"
+    score: float | None  # Top anomaly score
+    threshold: float | None  # Detection threshold used
     supporting_metrics: dict[str, float]
     assumptions: tuple[str, ...]  # What was assumed
     limitations: tuple[str, ...]  # What this record cannot claim
-    interpretation: str            # Human-readable meaning
+    interpretation: str  # Human-readable meaning
 ```
 
 ### Converting to dict
@@ -59,11 +59,11 @@ from anomaly_lab.detectors import robust_zscore as rz
 result = rz.fit_predict(df, features=["x"])
 record = classify_detection_evidence(result)
 
-print(record.evidence_class)      # e.g. "POINT_ANOMALY"
-print(record.confidence)          # e.g. 0.85
-print(record.interpretation)      # Human-readable explanation
-print(record.assumptions)         # Tuple of assumptions
-print(record.limitations)         # Tuple of what this cannot claim
+print(record.evidence_class)  # e.g. "POINT_ANOMALY"
+print(record.confidence)  # e.g. 0.85
+print(record.interpretation)  # Human-readable explanation
+print(record.assumptions)  # Tuple of assumptions
+print(record.limitations)  # Tuple of what this cannot claim
 ```
 
 ### Classify a ComparisonResult
