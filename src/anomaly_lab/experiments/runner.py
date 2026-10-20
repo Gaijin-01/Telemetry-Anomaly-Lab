@@ -112,7 +112,7 @@ class PlanExecutionResult:
     def to_toml(self) -> str:
         """Serialize PlanExecutionResult to a TOML-formatted string."""
         dict_repr = _make_toml_compatible(self.to_dict())
-        return _dict_to_toml(dict_repr, indent="  ")
+        return _dict_to_toml(dict_repr)
 
 
 # ------------------------------------------------------------------ #
@@ -121,10 +121,13 @@ class PlanExecutionResult:
 
 
 def _make_toml_compatible(obj: Any) -> Any:
-    """Walk a dict and replace non-TOML types."""
+    """Walk a dict and replace non-TOML types with TOML-compatible equivalents."""
     if isinstance(obj, dict):
         return {str(k): _make_toml_compatible(v) for k, v in obj.items()}
     if isinstance(obj, (list, tuple)):
+        # Convert list/tuple of 2-tuples (key-value pairs) to dict
+        if obj and all(isinstance(it, (list, tuple)) and len(it) == 2 for it in obj):
+            return {str(k): _make_toml_compatible(v) for k, v in obj}
         return [_make_toml_compatible(item) for item in obj]
     if isinstance(obj, float) and not np.isfinite(obj):
         return None
@@ -132,6 +135,8 @@ def _make_toml_compatible(obj: Any) -> Any:
         return float(obj) if isinstance(obj, np.floating) else int(obj)
     if isinstance(obj, np.bool_):
         return bool(obj)
+    if isinstance(obj, np.ndarray):
+        return [_make_toml_compatible(item) for item in obj.tolist()]
     if isinstance(obj, Enum):
         return obj.value
     return obj
@@ -475,22 +480,203 @@ def _dict_to_detection_result(d: dict[str, Any]) -> DetectionResult:
     )
 
 
-def _dict_to_toml(obj: Any, indent: str = "  ") -> str:
-    """Serialize a dict to TOML string using the toml library."""
-    import toml
+def _toml_escape(s):
+    """Escape string content for TOML value context. Returns raw escaped (no outer quotes)."""
+    if not isinstance(s, str):
+        s = str(s)
+    # Escape special characters
+    s = s.replace("\\", "\\\\")
+    s = s.replace('"', '\\"')
+    s = s.replace("\n", "\\n")
+    s = s.replace("\r", "\\r")
+    s = s.replace("\t", "\\t")
+    return s
 
-    # Convert to TOML-compatible structure
-    serializable = _make_toml_compatible(obj)
-    return toml.dumps(serializable)
+
+def _fmt_val(v):
+    """Format a scalar value as TOML literal. Returns None to signal 'skip this key'."""
+    if v is None:
+        return None
+    if isinstance(v, bool):
+        return "true" if v else "false"
+    if isinstance(v, int):
+        return str(v)
+    if isinstance(v, float):
+        if not np.isfinite(v):
+            return None
+        return repr(v)
+    if isinstance(v, str):
+        return f'"{_toml_escape(v)}"'
+    if isinstance(v, (list, tuple)) and v and all(_is_scalar(x) for x in v):
+        items = ", ".join(_fmt_val(x) for x in v)
+        return f"[{items}]"
+    return repr(v)
 
 
-def _toml_string_value(s: str) -> str:
-    """Quote a string for TOML, handling special characters."""
-    import toml
+def _is_scalar(v):
+    return v is None or isinstance(v, (bool, int, float, str))
 
-    return toml.dumps({"": s}).strip()
+
+def _dict_to_toml(obj, _indent="  "):
+    """Serialize dict to valid TOML 1.0 using only stdlib."""
+    out = []
+
+    def emit_table(d, prefix=""):
+        # Separate scalar keys, inline-table-able dicts, and real sub-tables
+        scalars = {}
+        subtables = {}
+        inline = {}
+        for k, v in d.items():
+            if _is_scalar(v):
+                scalars[k] = v
+            elif isinstance(v, dict) and v:
+                if all(_is_scalar(sv) for sv in v.values()):
+                    inline[k] = v
+                else:
+                    subtables[k] = v
+            else:
+                scalars[k] = v
+
+        # Emit scalar keys
+        for k, v in scalars.items():
+            fv = _fmt_val(v)
+            if fv is not None:
+                out.append(f"{_indent}{_toml_escape(k)} = {fv}")
+
+        # Emit inline dicts
+        for k, v in inline.items():
+
+            def _make_pairs(d):
+                result = []
+                for sk, sv in d.items():
+                    fv = _fmt_val(sv)
+                    if fv is not None:
+                        result.append(f'"{_toml_escape(sk)}" = {fv}')
+                return result
+
+            pairs = ", ".join(_make_pairs(v))
+            out.append(f"{_toml_escape(k)} = {{{pairs}}}")
+
+        # Emit subtables (nested [key] sections)
+        for k, v in subtables.items():
+            section = f"[{prefix}{_toml_escape(k)}]" if prefix else f"[{_toml_escape(k)}]"
+            out.append(section)
+            emit_table(v, prefix=f"{prefix}{k}.")
+
+    def emit_aot(key, items):
+        """Emit array-of-tables for a list of dicts."""
+        for item in items:
+            out.append(f"[[{key}]]")
+            emit_aot_dict(item, f"{key}.")
+
+    def emit_aot_dict(d, prefix=""):
+        """Emit key=value for a dict inside AoT context."""
+        # Separate inline dicts and subtables
+        scalars = {}
+        inline_dicts = {}
+        subtables = {}
+        list_of_dicts = {}
+        for k, v in d.items():
+            if _is_scalar(v):
+                scalars[k] = v
+            elif isinstance(v, dict) and v:
+                if all(_is_scalar(sv) for sv in v.values()):
+                    inline_dicts[k] = v
+                else:
+                    subtables[k] = v
+            elif isinstance(v, list) and v and all(isinstance(x, dict) for x in v):
+                # Use inline array of inline tables for dicts-as-values (not AoT)
+                list_of_dicts[k] = v
+            elif isinstance(v, list) and v and all(_is_scalar(x) for x in v):
+                scalars[k] = v
+            else:
+                scalars[k] = v
+        # Scalars at ROOT level of AoT (no indent), then blank line, then tables
+        for k, v in scalars.items():
+            fv = _fmt_val(v)
+            if fv is not None:
+                out.append(f"{_toml_escape(k)} = {fv}")
+        if scalars:
+            out.append("")
+        for k, v in list_of_dicts.items():
+            # Inline array of inline tables: rows = [{key = val, ...}, ...]
+            entries = []
+            for item in v:
+
+                def _make_fields(d):
+                    result = []
+                    for ik, iv in d.items():
+                        fv = _fmt_val(iv)
+                        if fv is not None:
+                            result.append(f"{_toml_escape(ik)} = {fv}")
+                    return result
+
+                fields = ", ".join(_make_fields(item))
+                entries.append(f"{{{fields}}}")
+            sep = ", "
+            out.append(f"{_indent}{_toml_escape(k)} = [{sep.join(entries)}]")
+        for k, v in inline_dicts.items():
+
+            def _make_pairs(d):
+                result = []
+                for sk, sv in d.items():
+                    fv = _fmt_val(sv)
+                    if fv is not None:
+                        result.append(f'"{_toml_escape(sk)}" = {fv}')
+                return result
+
+            pairs = ", ".join(_make_pairs(v))
+            out.append(f"{_indent}{_toml_escape(k)} = {{{pairs}}}")
+        for k, v in subtables.items():
+            out.append(f"[{prefix}{_toml_escape(k)}]")
+            emit_aot_dict(v, f"{prefix}{k}.")
+
+    # Top-level dispatch
+    for k, v in obj.items():
+        if _is_scalar(v):
+            fv = _fmt_val(v)
+            if fv is not None:
+                out.append(f"{_toml_escape(k)} = {fv}")
+        elif isinstance(v, dict) and v:
+            if all(_is_scalar(sv) for sv in v.values()):
+
+                def _make_pairs_toplevel(d):
+                    result = []
+                    for sk, sv in d.items():
+                        fv = _fmt_val(sv)
+                        if fv is not None:
+                            result.append(f'"{_toml_escape(sk)}" = {fv}')
+                    return result
+
+                pairs = ", ".join(_make_pairs_toplevel(v))
+                out.append(f"{_toml_escape(k)} = {{{pairs}}}")
+            else:
+                out.append(f"[{_toml_escape(k)}]")
+                emit_table(v, f"{k}.")
+        elif isinstance(v, list) and v:
+            if all(_is_scalar(x) for x in v):
+                items = ", ".join(str(fv) for x in v for fv in [_fmt_val(x)] if fv is not None)
+                out.append(f"{_toml_escape(k)} = [{items}]")
+            elif all(isinstance(x, dict) for x in v):
+                emit_aot(k, v)
+            else:
+                for x in v:
+                    fv = _fmt_val(x)
+                    if fv is not None:
+                        out.append(f"{_indent}{fv}")
+        else:
+            fv = _fmt_val(v)
+            if fv is not None:
+                out.append(f"{_toml_escape(k)} = {fv}")
+    return "\n".join(out)
+
+
+def _toml_string_value(s):
+    return _toml_escape(s)
 
 
 def _write_toml(result: PlanExecutionResult, path: Path) -> None:
     """Write plan execution result to a TOML file."""
-    path.write_text(result.to_toml())
+    d = result.to_dict()
+    mc = _make_toml_compatible(d)
+    path.write_text(_dict_to_toml(mc))
