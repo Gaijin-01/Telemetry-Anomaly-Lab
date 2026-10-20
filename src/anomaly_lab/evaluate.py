@@ -20,7 +20,7 @@ class EvaluationResult:
     n_points: int
     evaluator_note: str  # "VUS-PR computed" | "PR-AUC only"
     caveats: tuple[str, ...]
-    schema_version: str = "0.4"
+    schema_version: str = "0.5"
 
     def to_dict(self) -> dict[str, Any]:
         return {

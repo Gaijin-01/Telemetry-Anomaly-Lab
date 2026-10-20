@@ -1,5 +1,54 @@
 # Changelog
 
+## v0.5.0 — Experiment Contract, Evidence API, Orchestration and Skills
+
+### Release Repair
+
+- **Package version**: `pyproject.toml` `project.version` bumped `0.4.2` → `0.5.0`. The `v0.5.0` tag previously pointed at a commit whose installable package still reported `0.4.2`; the tag and the package version are now consistent.
+- **Output schema version**: `schema_version` bumped `0.4` → `0.5` across `DetectionResult`, `ConsensusResult`, `EvaluationResult`, the dataset-semantics profile payload, and the experiment-result deserialization default. Package version and output schema version now share the same `major.minor` prefix, as required by the release metadata gates.
+- **GitHub Release**: a real release now exists for the `v0.5.0` tag. Previously only the tag existed, so `/releases/tag/v0.5.0` returned `404`.
+
+### Stdlib-Only TOML Writing
+
+- **Removed the `toml>=0.10` runtime dependency**: experiment specifications are read with stdlib `tomllib`, and results are written back with a small deterministic stdlib TOML writer (`_dict_to_toml`, `_make_toml_compatible`, `_toml_escape`, `_fmt_val`) instead of `toml.dumps()`.
+- **Deterministic output**: strings are always quoted, `None`/NaN/inf values are omitted (TOML 1.0 has no `null` literal), arrays of scalars and arrays of inline tables are emitted in TOML 1.0 form, and arrays of tables are emitted as `[[...]]` sections with scalar members unindented.
+- **No new third-party dependency is introduced**; the stdlib-only invariant is restored.
+
+### Experiment Contract
+
+- **ExperimentSpec**: frozen dataclass with validation — `experiment_id`, `dataset_path`/`dataset_hash`, `features`, `analysis_type`, `detectors`, `baseline_role`/`candidate_role`, `thresholds`, `seed`, `allowed_changed_dimensions`.
+- **ExperimentResult**: frozen dataclass with confidence clamping and applicability tracking.
+- **Canonical hashing**: SHA256 canonical hashes for spec, parameters and experiment results. Deterministic — same input, spec and seed always produce the same hash.
+- **ProvenanceRecord**: environment metadata snapshot for every experiment run.
+- **Replay**: verify and restore an experiment from its provenance record.
+
+### Evidence API
+
+- **taxonomy**: `EvidenceClass` (extended), `CausalityStatus`, `EvidenceStrength`. `EvidenceRecord` gains `causality_status`, `applicability` and `verdict`.
+- **applicability**: `is_applicable()` enforces `INVALID_ANALYSIS_CANNOT_EXECUTE`.
+- **comparability**: `can_compare()` enforces `TIME_ORDER` / `BASELINE` / `CANDIDATE` / `METADATA_IS_NOT_FEATURE`.
+- **verdicts**: `compute_verdict()` enforces the `FAILED_EXECUTION_CANNOT_PASS` invariant.
+
+### Orchestration
+
+- **protocol**: allowed action sequence — inspect, plan, validate, execute, summarize, export.
+- **actions**: action registry and dispatcher.
+- **guardrails**: `guard()` blocks forbidden actions.
+
+### Skills
+
+- Six skills under `src/anomaly_lab/skills/`: `inspect_data`, `select_analysis_plan`, `validate_comparison`, `run_experiment`, `summarize_evidence`, `export_report`.
+- The `SKILL_OUTPUT_CANNOT_OVERRIDE_CORE_EVIDENCE` invariant is enforced.
+
+### CLI and Harness
+
+- `anomaly-lab experiment validate | plan | run | replay` subcommands.
+- Scenario harness with 15 scenario TOMLs and expected evidence contracts, plus `harness/runner.py` and `harness/evaluator.py` for semantic correctness checks.
+
+### Tests
+
+611 passed (570 core + 41 PyOD), 15 skipped.
+
 ## v0.4.2 — Hygiene Sanitation and Benchmark Hardening
 
 ### Internal Context Removed

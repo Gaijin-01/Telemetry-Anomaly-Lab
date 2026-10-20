@@ -653,7 +653,7 @@ def main(argv: list[str] | None = None) -> int:
                     not_applicable.append(entry)
 
             payload = {
-                "schema_version": "0.4",
+                "schema_version": "0.5",
                 "semantics": profile.semantics.value,
                 "has_timestamp": profile.has_timestamp,
                 "has_group_key": profile.has_group_key,

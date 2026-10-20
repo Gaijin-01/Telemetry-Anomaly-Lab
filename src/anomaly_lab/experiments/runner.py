@@ -472,7 +472,7 @@ def _dict_to_detection_result(d: dict[str, Any]) -> DetectionResult:
         scores=scores,
         clusters=tuple(r["cluster"] for r in d["rows"]) if "clusters" in d else None,
         metadata=d.get("metadata"),
-        schema_version=d.get("schema_version", "0.4"),
+        schema_version=d.get("schema_version", "0.5"),
         dataset_semantics=d.get("dataset_semantics"),
         evidence_class=d.get("evidence_class", ""),
         confidence=d.get("confidence"),
