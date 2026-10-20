@@ -316,13 +316,15 @@ def safe_roc_auc(y_true, y_score):
         return float("nan")
 
 
-def safe_spearman(y_true, y_score):
-    """Return NaN if correlation cannot be computed; do NOT return 0.0."""
-    try:
-        rho, _ = spearmanr(y_true, y_score)
-        return float(rho) if np.isfinite(rho) else float("nan")
-    except Exception:
-        return float("nan")
+def safe_spearman(ground_truth, detector_scores):
+    """Compute Spearman rank correlation between ground-truth severity and detector scores.
+
+    Returns NaN for undefined correlations (constant inputs).  Raises on unexpected errors
+    so that benchmark records a FAILED run rather than silently producing a misleading value.
+    """
+    # spearmanr raises ValueError when an input is constant or has fewer than 2 points
+    rho, _ = spearmanr(ground_truth, detector_scores)
+    return float(rho) if np.isfinite(rho) else float("nan")
 
 
 def top5_overlap(score_dict: dict) -> float:
@@ -481,7 +483,7 @@ def main():
                 scores = score_dict[det_name]
                 ms = runtime_dict[det_name]
                 auc = safe_roc_auc(y, scores)
-                rho = safe_spearman(y, anomaly_scores)
+                rho = safe_spearman(anomaly_scores, scores)
                 ds_result["detector_scores"][det_name] = scores.tolist()
                 ds_result["runtimes_ms"][det_name] = ms
                 ds_result["roc_auc"][det_name] = auc

@@ -462,3 +462,130 @@ def test_pca_runner_uses_pca_class():
     assert np.allclose(pca_scores, pca_ref.decision_scores_, rtol=0.001), (
         "run_pca scores do not match PCA ground truth"
     )
+
+
+def _import_safe_spearman():
+    """Load safe_spearman from the local benchmarks directory."""
+    import importlib.util
+    import os
+    import sys
+
+    repo_root = os.path.join(os.path.dirname(__file__), "..")
+    sys.path.insert(0, repo_root)
+    spec = importlib.util.spec_from_file_location(
+        "pyod_candidates_sp", os.path.join(repo_root, "benchmarks", "pyod_candidates.py")
+    )
+    mod = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(mod)
+    return mod.safe_spearman
+
+
+def test_safe_spearman_per_detector_scores_differ():
+    """Different detector score vectors must produce different Spearman values."""
+    safe_spearman = _import_safe_spearman()
+    rng = np.random.default_rng(999)
+    ground_truth = rng.standard_normal(50)
+    scores_a = rng.standard_normal(50)
+    scores_b = rng.standard_normal(50)
+    rho_a = safe_spearman(ground_truth, scores_a)
+    rho_b = safe_spearman(ground_truth, scores_b)
+    assert rho_a != rho_b, (
+        "Two different random score vectors gave identical Spearman — "
+        "safe_spearman is not using detector scores"
+    )
+
+
+def test_safe_spearman_replacement_invariant():
+    """Replacing detector scores MUST change the Spearman value."""
+    safe_spearman = _import_safe_spearman()
+    ground_truth = np.array([0.0, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9])
+    detector_scores = np.array([0.0, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9])
+    rho_original = safe_spearman(ground_truth, detector_scores)
+    replacement = np.array([0.9, 0.8, 0.7, 0.6, 0.5, 0.4, 0.3, 0.2, 0.1, 0.0])
+    rho_replaced = safe_spearman(ground_truth, replacement)
+    assert rho_replaced != rho_original, (
+        "Replacing detector scores left Spearman unchanged — "
+        "safe_spearman is not correlating detector scores"
+    )
+
+
+def test_safe_spearman_perfect_monotonic():
+    """Perfect monotonic detector scores must give rho ≈ 1."""
+    safe_spearman = _import_safe_spearman()
+    ground_truth = np.array([0.0, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9])
+    detector_scores = np.array([0.05, 0.12, 0.19, 0.31, 0.41, 0.52, 0.61, 0.72, 0.81, 0.91])
+    rho = safe_spearman(ground_truth, detector_scores)
+    assert 0.99 <= rho <= 1.01, f"Perfect monotonic detector gave rho={rho}, expected ~1.0"
+
+
+def test_safe_spearman_reversed():
+    """Reversed detector scores must give rho ≈ -1."""
+    safe_spearman = _import_safe_spearman()
+    ground_truth = np.array([0.0, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9])
+    detector_scores = np.array([0.9, 0.8, 0.7, 0.6, 0.5, 0.4, 0.3, 0.2, 0.1, 0.0])
+    rho = safe_spearman(ground_truth, detector_scores)
+    assert -1.01 <= rho <= -0.99, f"Reversed detector scores gave rho={rho}, expected ~-1.0"
+
+
+def test_safe_spearman_constant_scores():
+    """Constant detector scores must produce NaN (not 0.0)."""
+    safe_spearman = _import_safe_spearman()
+    ground_truth = np.array([0.0, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9])
+    constant_scores = np.ones(10)
+    rho = safe_spearman(ground_truth, constant_scores)
+    assert np.isnan(rho), f"Constant detector scores gave rho={rho}, expected NaN"
+
+
+def test_safe_spearman_unexpected_exception_propagates():
+    """Unexpected type errors must NOT be silently caught and turned into NaN."""
+    safe_spearman = _import_safe_spearman()
+    try:
+        safe_spearman("not an array", [1, 2, 3])
+    except (TypeError, ValueError):
+        pass
+    else:
+        raise AssertionError("Expected TypeError or ValueError for incompatible types")
+
+
+def test_safe_spearman_ground_truth_vs_detector_scores():
+    """safe_spearman must correlate ground_truth severity with detector scores.
+
+    Prior bug: safe_spearman(y, anomaly_scores) was called — correlating
+    ground truth label y with ground truth severity anomaly_scores,
+    giving every detector the SAME rho value. The correct call is
+    safe_spearman(anomaly_scores, detector_scores).
+    """
+    safe_spearman = _import_safe_spearman()
+    n = 20
+    rng = np.random.default_rng(42)
+    anomaly_scores = np.concatenate(
+        [
+            rng.uniform(0.0, 0.2, 10),
+            rng.uniform(0.8, 1.0, 10),
+        ]
+    )
+    detector_scores_a = anomaly_scores + rng.standard_normal(n) * 0.05
+    detector_scores_b = 1.0 - anomaly_scores + rng.standard_normal(n) * 0.05
+    rho_a = safe_spearman(anomaly_scores, detector_scores_a)
+    rho_b = safe_spearman(anomaly_scores, detector_scores_b)
+    assert rho_a > 0.9, f"Perfect detector should give rho > 0.9, got {rho_a}"
+    assert rho_b < -0.9, f"Inverted detector should give rho < -0.9, got {rho_b}"
+    assert abs(rho_a - rho_b) > 1.5, (
+        f"Positive and negative detectors must give very different rho values, got {rho_a} vs {rho_b}"
+    )
+
+
+def _import_benchmark_runner(name):
+    """Import a runner function from the local benchmarks directory."""
+    import importlib.util
+    import os
+    import sys
+
+    repo_root = os.path.join(os.path.dirname(__file__), "..")
+    sys.path.insert(0, repo_root)
+    spec = importlib.util.spec_from_file_location(
+        f"pyod_candidates_{name}", os.path.join(repo_root, "benchmarks", "pyod_candidates.py")
+    )
+    mod = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(mod)
+    return getattr(mod, name)
