@@ -1,11 +1,11 @@
 from pathlib import Path
 
 
-def test_project_version_is_v042():
+def test_project_version_is_v050():
     import tomllib
 
     project = tomllib.loads(Path("pyproject.toml").read_text())
-    assert project["project"]["version"] == "0.4.2"
+    assert project["project"]["version"] == "0.5.0"
 
 
 def test_public_release_scope_and_noncausal_contract():

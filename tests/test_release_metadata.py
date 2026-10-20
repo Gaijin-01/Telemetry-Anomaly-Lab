@@ -45,11 +45,11 @@ def test_schema_version_is_04():
     )
 
 
-def test_pyproject_version_is_042():
-    """pyproject.toml version must be 0.4.2."""
+def test_pyproject_version_is_050():
+    """pyproject.toml version must be 0.5.0."""
     data = _load_pyproject()
-    assert data["project"]["version"] == "0.4.2", (
-        f"pyproject.toml version is {data['project']['version']!r}, expected '0.4.2'"
+    assert data["project"]["version"] == "0.5.0", (
+        f"pyproject.toml version is {data['project']['version']!r}, expected '0.5.0'"
     )
 
 
@@ -59,4 +59,4 @@ def test_package_version_matches_schema_version_prefix():
     pkg_version = data["project"]["version"]
     major = pkg_version.split(".")[0]
     assert major == "0", f"Major version {major!r} not '0'"
-    assert pkg_version.startswith("0.4"), f"package version {pkg_version!r} does not start with 0.4"
+    assert pkg_version.startswith("0.5"), f"package version {pkg_version!r} does not start with 0.5"
