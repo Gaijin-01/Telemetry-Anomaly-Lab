@@ -10,7 +10,9 @@ import pytest
 
 REPO_ROOT = Path(__file__).parent.parent.resolve()
 
-# Add src to path for imports
+# Add repo root to path for harness imports (at repo root, not src/)
+sys.path.insert(0, str(REPO_ROOT))
+# Add src to path for anomaly_lab imports
 sys.path.insert(0, str(REPO_ROOT / "src"))
 
 from harness.evaluator import (
