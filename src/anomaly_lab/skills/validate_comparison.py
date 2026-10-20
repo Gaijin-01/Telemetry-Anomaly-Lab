@@ -120,9 +120,9 @@ def validate_comparison(
                     field="dataset_semantics",
                     code="SEMANTICS_MISMATCH",
                     message=(
-                    f"baseline semantics={baseline.dataset_semantics!r} "
-                    f"!= candidate semantics={candidate.dataset_semantics!r}"
-                ),
+                        f"baseline semantics={baseline.dataset_semantics!r} "
+                        f"!= candidate semantics={candidate.dataset_semantics!r}"
+                    ),
                 )
             )
 

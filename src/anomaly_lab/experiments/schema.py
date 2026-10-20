@@ -79,8 +79,7 @@ class ExperimentSpec:
             raise ValueError("features contains duplicate entries")
         if self.analysis_type not in VALID_ANALYSIS_TYPES:
             raise ValueError(
-                f"analysis_type must be one of {VALID_ANALYSIS_TYPES}, "
-                f"got {self.analysis_type!r}"
+                f"analysis_type must be one of {VALID_ANALYSIS_TYPES}, got {self.analysis_type!r}"
             )
         if self.analysis_type == "compare":
             if not self.baseline_role:
