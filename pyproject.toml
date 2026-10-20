@@ -9,7 +9,7 @@ description = "Offline controlled-analysis toolkit for numeric telemetry: anomal
 readme = "README.md"
 requires-python = ">=3.11"
 license = {file = "LICENSE"}
-dependencies = ["numpy>=1.24", "pandas>=2.0", "scikit-learn>=1.3", "scipy>=1.10"]
+dependencies = ["numpy>=1.24", "pandas>=2.0", "scikit-learn>=1.3", "scipy>=1.10", "toml>=0.10"]
 
 [project.optional-dependencies]
 dev = ["pytest>=8", "ruff>=0.6"]
@@ -36,3 +36,5 @@ select = ["E", "F", "I", "UP", "B"]
 
 [tool.ruff.lint.per-file-ignores]
 "tests/*" = ["E501"]
+"src/anomaly_lab/cli_experiment.py" = ["E402", "E501"]
+"tests/test_scenario_harness.py" = ["E402", "E501"]

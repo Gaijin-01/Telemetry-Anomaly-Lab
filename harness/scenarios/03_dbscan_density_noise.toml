@@ -1,0 +1,28 @@
+# Scenario: isolation-forest anomaly detection (2-feature)
+# Two-dimensional data; isolation forest should flag anomalous feature pairs.
+
+name = "if_two_feature"
+type = "analyze"
+detector = "isolation-forest"
+features = ["x", "y"]
+fixture = "isolation_forest_two_feature.csv"
+
+expected_evidence_class = "POINT_ANOMALY"
+expected_confidence_min = 0.5
+expected_confidence_max = 1.0
+expected_detector = "isolation-forest"
+anomaly_count_min = 0
+anomaly_count_max = 6
+
+required_evidence_fields = [
+    "evidence_class",
+    "confidence",
+    "detector",
+]
+
+tolerance = 1e-4
+
+required_assumptions = [
+    "contamination",
+    "StandardScaler",
+]

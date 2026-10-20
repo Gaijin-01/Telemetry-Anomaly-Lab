@@ -1,0 +1,38 @@
+# Scenario: paired experiment comparison — baseline vs candidate
+# Candidate shifts slightly higher; should detect difference.
+
+name = "compare_paired_shift"
+type = "compare"
+baseline = "harness/fixtures/paired_baseline.csv"
+candidate = "harness/fixtures/paired_candidate.csv"
+features = ["x", "y"]
+
+baseline_metadata = { model = "test-model", version = "v1", quantization = "none", concurrency = "1" }
+candidate_metadata = { model = "test-model", version = "v2", quantization = "none", concurrency = "1" }
+
+[[metrics]]
+name = "x"
+direction = "higher"
+threshold = 0.1
+
+[[metrics]]
+name = "y"
+direction = "higher"
+threshold = 0.1
+
+# For compare scenarios, evidence class comes from result.status
+# Expected: REGRESSION (candidate higher than baseline on both metrics with direction=higher)
+expected_evidence_class = "COMPARISON_DIFFERENCE"
+expected_confidence_min = 0.5
+expected_confidence_max = 1.0
+
+required_evidence_fields = [
+    "status",
+    "metrics",
+]
+
+tolerance = 1e-4
+
+forbidden_assumptions = [
+    "causality",
+]

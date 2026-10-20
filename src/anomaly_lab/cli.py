@@ -335,6 +335,47 @@ def _parser() -> argparse.ArgumentParser:
         help="output HTML file (default: report.html)",
     )
 
+    # experiment
+    experiment_parser = subparsers.add_parser(
+        "experiment", help="run and evaluate experiment scenarios from TOML specs"
+    )
+    exp_subparsers = experiment_parser.add_subparsers(dest="experiment_command", required=True)
+
+    # experiment validate
+    exp_validate = exp_subparsers.add_parser(
+        "validate", help="validate a scenario TOML and its fixture references"
+    )
+    exp_validate.add_argument("scenario", type=Path, help="path to scenario TOML file")
+    exp_validate.add_argument("--harness-dir", type=Path, default=None)
+
+    # experiment plan
+    exp_plan = exp_subparsers.add_parser(
+        "plan", help="show the resolved CLI commands for a scenario without running"
+    )
+    exp_plan.add_argument("scenario", type=Path, help="path to scenario TOML file")
+    exp_plan.add_argument("--harness-dir", type=Path, default=None)
+
+    # experiment run
+    exp_run = exp_subparsers.add_parser(
+        "run", help="execute one or all scenario TOMLs and write JSON results"
+    )
+    exp_run.add_argument(
+        "scenario", nargs="?", type=Path, default=None, help="scenario TOML (omit for all)"
+    )
+    exp_run.add_argument("--harness-dir", type=Path, default=None)
+    exp_run.add_argument("--output-dir", type=Path, default=None)
+    exp_run.add_argument(
+        "--rerun", action="store_true", help="re-run even if result JSON already exists"
+    )
+
+    # experiment replay
+    exp_replay = exp_subparsers.add_parser(
+        "replay", help="re-evaluate a saved JSON result against a scenario spec"
+    )
+    exp_replay.add_argument("scenario", type=Path, help="path to scenario TOML file")
+    exp_replay.add_argument("result_json", type=Path, help="path to previously saved JSON result")
+    exp_replay.add_argument("--harness-dir", type=Path, default=None)
+
     # consensus
     consensus_parser = subparsers.add_parser(
         "consensus", help="compute detector consensus across multiple JSON results"
@@ -408,6 +449,7 @@ def _fail_on_codes(fail_on: list[str] | None, result: object) -> int | None:
 
 def main(argv: list[str] | None = None) -> int:
     args = _parser().parse_args(argv)
+    payload: dict = {}  # may be set by specific command branches; used by final _write_json
     try:
         if args.command == "run":
             config_path = args.config
@@ -658,9 +700,59 @@ def main(argv: list[str] | None = None) -> int:
                 "Telemetry-Anomaly-Lab does NOT silently coerce one dataset type into another."
             )
 
+        elif args.command == "experiment":
+            # Dynamically import to avoid hard dependency on harness at module load
+            from anomaly_lab.cli_experiment import (
+                _resolve_harness_dir,
+                _run_experiment_plan,
+                _run_experiment_replay,
+                _run_experiment_run,
+                _run_experiment_validate,
+            )
+
+            harness_dir = _resolve_harness_dir(args.harness_dir)
+            exp_cmd = args.experiment_command
+
+            if exp_cmd == "validate":
+                ok = _run_experiment_validate(args.scenario, harness_dir)
+                return 0 if ok else _EXIT_CFG
+
+            elif exp_cmd == "plan":
+                try:
+                    _run_experiment_plan(args.scenario, harness_dir)
+                except AnomalyLabError as exc:
+                    print(f"error: {exc}")
+                    return _EXIT_CFG
+                return 0
+
+            elif exp_cmd == "run":
+                return _run_experiment_run(
+                    args.scenario,
+                    harness_dir,
+                    args.output_dir,
+                    args.rerun,
+                )
+
+            elif exp_cmd == "replay":
+                ok = _run_experiment_replay(args.scenario, args.result_json, harness_dir)
+                return 0 if ok else _EXIT_CFG
+
         else:  # analyze
             result = analyze(str(args.input), args.detector, _features(args.features))
             payload = result.to_dict()
+            # Enrich with semantic evidence classification
+            try:
+                from anomaly_lab.evidence import classify_detection_evidence
+
+                record = classify_detection_evidence(result)
+                payload["evidence_class"] = record.evidence_class
+                payload["confidence"] = record.confidence
+                payload["assumptions"] = list(record.assumptions)
+                payload["limitations"] = list(record.limitations)
+                payload["interpretation"] = record.interpretation
+                payload["supporting_metrics"] = record.supporting_metrics
+            except Exception:
+                pass  # Evidence enrichment is best-effort; core result is primary
             print(
                 f"Detector: {result.detector}; rows: {len(result.row_indices)}; "
                 f"anomalies: {sum(result.is_anomaly)}"

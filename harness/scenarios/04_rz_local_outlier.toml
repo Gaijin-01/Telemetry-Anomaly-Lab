@@ -1,0 +1,27 @@
+# Scenario: local outlier — isolated single point deviating from neighbours
+# One point (0.9) is slightly outside the local neighbourhood band.
+
+name = "rz_local_outlier"
+type = "analyze"
+detector = "robust-zscore"
+features = ["x"]
+fixture = "local_outlier.csv"
+
+expected_evidence_class = "LOCAL_OUTLIER"
+expected_confidence_min = 0.5
+expected_confidence_max = 1.0
+expected_detector = "robust-zscore"
+anomaly_count_min = 1
+anomaly_count_max = 2
+
+required_evidence_fields = [
+    "evidence_class",
+    "confidence",
+    "detector",
+]
+
+tolerance = 1e-4
+
+required_assumptions = [
+    "median_and_MAD",
+]

@@ -1,0 +1,28 @@
+# Scenario: insufficient sample for comparison
+# Compare with very few rows should return INSUFFICIENT_SAMPLE.
+
+name = "compare_insufficient_sample"
+type = "compare"
+baseline = "harness/fixtures/small_5row.csv"
+candidate = "harness/fixtures/point_anomaly.csv"
+features = ["x"]
+
+baseline_metadata = { model = "test-model", version = "v1", quantization = "none", concurrency = "1" }
+candidate_metadata = { model = "test-model", version = "v2", quantization = "none", concurrency = "1" }
+
+[[metrics]]
+name = "x"
+direction = "higher"
+threshold = 0.1
+min_samples = 10
+
+# Too few samples should yield INSUFFICIENT_SAMPLE or NOT_COMPARABLE
+expected_evidence_class = "INCONCLUSIVE"
+expected_confidence_min = 0.0
+expected_confidence_max = 0.5
+
+required_evidence_fields = [
+    "status",
+]
+
+tolerance = 1e-4

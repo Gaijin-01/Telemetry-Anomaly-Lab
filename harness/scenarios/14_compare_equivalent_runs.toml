@@ -1,0 +1,34 @@
+# Scenario: equivalence within margin — nearly identical runs
+# Baseline and candidate are within tolerance; TOST equivalence test.
+
+name = "compare_equivalent_runs"
+type = "compare"
+baseline = "harness/fixtures/paired_baseline.csv"
+candidate = "harness/fixtures/paired_baseline.csv"
+features = ["x", "y"]
+
+baseline_metadata = { model = "test-model", version = "v1", quantization = "none", concurrency = "1" }
+candidate_metadata = { model = "test-model", version = "v1", quantization = "none", concurrency = "1" }
+
+[[metrics]]
+name = "x"
+direction = "higher"
+threshold = 0.05
+
+[[metrics]]
+name = "y"
+direction = "higher"
+threshold = 0.05
+
+# Identical data should give NO_REGRESSION (not necessarily EQUIVALENT_WITHIN_MARGIN
+# since that requires a specific TOST procedure)
+expected_evidence_class = "COMPARISON_DIFFERENCE"
+expected_confidence_min = 0.4
+expected_confidence_max = 0.8
+
+required_evidence_fields = [
+    "status",
+    "metrics",
+]
+
+tolerance = 1e-4

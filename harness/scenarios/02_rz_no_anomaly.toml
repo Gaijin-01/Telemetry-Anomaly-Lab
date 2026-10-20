@@ -1,0 +1,28 @@
+# Scenario: no anomaly detected — clean data
+# All values within expected range; no exceedances.
+
+name = "rz_no_anomaly"
+type = "analyze"
+detector = "robust-zscore"
+features = ["x"]
+fixture = "no_anomaly.csv"
+
+expected_evidence_class = "INCONCLUSIVE"
+expected_confidence_min = 0.0
+expected_confidence_max = 0.5
+expected_detector = "robust-zscore"
+anomaly_count_min = 0
+anomaly_count_max = 0
+
+required_evidence_fields = [
+    "evidence_class",
+    "confidence",
+    "detector",
+]
+
+tolerance = 1e-4
+
+forbidden_assumptions = [
+    "causal",
+    "root_cause",
+]

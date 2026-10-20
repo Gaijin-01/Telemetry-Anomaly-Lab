@@ -1,0 +1,35 @@
+# Scenario: point anomaly detection with robust-zscore
+# A single extreme outlier (row 5, value=10.0) among mostly stable values.
+
+name = "rz_point_anomaly_single"
+type = "analyze"
+detector = "robust-zscore"
+features = ["x"]
+fixture = "point_anomaly.csv"
+
+# Expected evidence contract
+expected_evidence_class = "POINT_ANOMALY"
+expected_confidence_min = 0.5
+expected_confidence_max = 1.0
+expected_detector = "robust-zscore"
+anomaly_count_min = 1
+anomaly_count_max = 3
+
+required_evidence_fields = [
+    "evidence_class",
+    "confidence",
+    "detector",
+    "supporting_metrics",
+]
+
+tolerance = 1e-4
+
+required_assumptions = [
+    "median_and_MAD",
+]
+
+forbidden_assumptions = [
+    "causal",
+    "root_cause",
+    "regression",
+]
